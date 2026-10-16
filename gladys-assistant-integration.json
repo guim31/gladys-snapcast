@@ -1,147 +1,368 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Snapcast",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Multiroom audio with Snapcast: volume and mute per room, streams, groups, scenes.",
+    "fr": "Audio multiroom Snapcast : volume et sourdine par pièce, flux, groupes, scènes.",
+    "de": "Multiroom-Audio mit Snapcast: Lautstärke und Stummschaltung pro Raum, Streams, Gruppen, Szenen.",
+    "es": "Audio multiroom con Snapcast: volumen y silencio por habitación, fuentes, grupos, escenas."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "docker_image": "ghcr.io/guim31/gladys-snapcast:1.0.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-snapcast/main/cover.png",
+  "categories": ["multimedia"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Connect your Snapcast server",
+        "fr": "Connecter votre serveur Snapcast",
+        "de": "Verbinde deinen Snapcast-Server",
+        "es": "Conecte su servidor Snapcast"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Type the address of the machine that runs snapserver. The integration uses its JSON-RPC control port (TCP 1705, on by default) and follows every change live. Each snapclient becomes a device (a room), each stream too.",
+        "fr": "Saisissez l'adresse de la machine qui fait tourner snapserver. L'intégration utilise son port de contrôle JSON-RPC (TCP 1705, actif par défaut) et suit chaque changement en direct. Chaque snapclient devient un appareil (une pièce), chaque flux aussi.",
+        "de": "Gib die Adresse des Rechners ein, auf dem snapserver läuft. Die Integration nutzt seinen JSON-RPC-Steuerport (TCP 1705, standardmäßig aktiv) und folgt jeder Änderung live. Jeder snapclient wird ein Gerät (ein Raum), jeder Stream auch.",
+        "es": "Introduzca la dirección del equipo que ejecuta snapserver. La integración usa su puerto de control JSON-RPC (TCP 1705, activo por defecto) y sigue cada cambio en directo. Cada snapclient se convierte en un dispositivo (una habitación), y cada fuente también."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/badaix/snapcast/blob/develop/doc/json_rpc_api/control.md",
+          "label": {
+            "en": "Snapcast: control API",
+            "fr": "Snapcast : API de contrôle",
+            "de": "Snapcast: Steuer-API",
+            "es": "Snapcast: API de control"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "host",
+      "type": "string",
+      "label": {
+        "en": "Server address",
+        "fr": "Adresse du serveur",
+        "de": "Serveradresse",
+        "es": "Dirección del servidor"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
+      "placeholder": {
+        "en": "e.g. 192.168.1.20",
+        "fr": "ex. 192.168.1.20",
+        "de": "z. B. 192.168.1.20",
+        "es": "p. ej. 192.168.1.20"
+      },
       "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "default": "",
+      "description": {
+        "en": "IP address or host name of snapserver. Add :port if its control port is not 1705.",
+        "fr": "Adresse IP ou nom d'hôte de snapserver. Ajoutez :port si son port de contrôle n'est pas 1705.",
+        "de": "IP-Adresse oder Hostname von snapserver. Ergänze :Port, wenn sein Steuerport nicht 1705 ist.",
+        "es": "Dirección IP o nombre de host de snapserver. Añada :puerto si su puerto de control no es el 1705."
+      }
     },
     {
-      "key": "longitude",
+      "key": "port",
       "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "label": {
+        "en": "Control port",
+        "fr": "Port de contrôle",
+        "de": "Steuerport",
+        "es": "Puerto de control"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "required": false,
+      "default": 1705,
+      "min": 1,
+      "max": 65535,
+      "description": {
+        "en": "TCP port of the JSON-RPC control (tcp section of snapserver.conf). Not the HTTP port 1780.",
+        "fr": "Port TCP du contrôle JSON-RPC (section tcp de snapserver.conf). Pas le port HTTP 1780.",
+        "de": "TCP-Port der JSON-RPC-Steuerung (Abschnitt tcp von snapserver.conf). Nicht der HTTP-Port 1780.",
+        "es": "Puerto TCP del control JSON-RPC (sección tcp de snapserver.conf). No el puerto HTTP 1780."
+      }
     },
     {
-      "key": "unit",
+      "key": "section_options",
+      "type": "section",
+      "label": {
+        "en": "Options",
+        "fr": "Options",
+        "de": "Optionen",
+        "es": "Opciones"
+      },
+      "description": {
+        "en": "Language of the names and texts the integration creates (feature names are set when a device is added).",
+        "fr": "Langue des noms et textes créés par l'intégration (les noms des fonctionnalités sont fixés à l'ajout de l'appareil).",
+        "de": "Sprache der Namen und Texte, die die Integration erzeugt (Funktionsnamen werden beim Hinzufügen des Geräts festgelegt).",
+        "es": "Idioma de los nombres y textos que crea la integración (los nombres de las funciones se fijan al añadir el dispositivo)."
+      }
+    },
+    {
+      "key": "language",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
-      "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+      "label": {
+        "en": "Language",
+        "fr": "Langue",
+        "de": "Sprache",
+        "es": "Idioma"
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
-    }
-  ],
-  "actions": [
-    {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
+      "default": "fr",
+      "options": [
         {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
+          }
         }
       ]
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "client_disconnected",
+      "label": {
+        "en": "Client disconnected",
+        "fr": "Client déconnecté",
+        "de": "Client getrennt",
+        "es": "Cliente desconectado"
+      },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "A snapclient leaves the server: speaker off, network lost.",
+        "fr": "Un snapclient quitte le serveur : enceinte éteinte, réseau perdu.",
+        "de": "Ein snapclient verlässt den Server: Lautsprecher aus, Netzwerk weg.",
+        "es": "Un snapclient abandona el servidor: altavoz apagado, red perdida."
       },
       "fields": [
         {
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
+          "label": {
+            "en": "Client (room)",
+            "fr": "Client (pièce)",
+            "de": "Client (Raum)",
+            "es": "Cliente (habitación)"
+          }
         }
       ],
       "variables": [
         {
-          "key": "target",
+          "key": "client",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "Client name",
+            "fr": "Nom du client",
+            "de": "Client-Name",
+            "es": "Nombre del cliente"
+          }
+        }
+      ]
+    },
+    {
+      "key": "client_connected",
+      "label": {
+        "en": "Client connected",
+        "fr": "Client connecté",
+        "de": "Client verbunden",
+        "es": "Cliente conectado"
+      },
+      "description": {
+        "en": "A snapclient joins the server again.",
+        "fr": "Un snapclient rejoint le serveur.",
+        "de": "Ein snapclient verbindet sich wieder mit dem Server.",
+        "es": "Un snapclient vuelve a unirse al servidor."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Client (room)",
+            "fr": "Client (pièce)",
+            "de": "Client (Raum)",
+            "es": "Cliente (habitación)"
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "client",
+          "type": "string",
+          "label": {
+            "en": "Client name",
+            "fr": "Nom du client",
+            "de": "Client-Name",
+            "es": "Nombre del cliente"
+          }
+        }
+      ]
+    },
+    {
+      "key": "stream_started",
+      "label": {
+        "en": "Stream started",
+        "fr": "Flux démarré",
+        "de": "Stream gestartet",
+        "es": "Fuente iniciada"
+      },
+      "description": {
+        "en": "Audio starts flowing on a stream: someone casts to Spotify, AirPlay...",
+        "fr": "Du son arrive sur un flux : quelqu'un diffuse sur Spotify, AirPlay…",
+        "de": "Auf einem Stream kommt Ton an: jemand spielt über Spotify, AirPlay…",
+        "es": "Llega sonido a una fuente: alguien emite por Spotify, AirPlay…"
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Stream",
+            "fr": "Flux",
+            "de": "Stream",
+            "es": "Fuente"
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "stream",
+          "type": "string",
+          "label": {
+            "en": "Stream name",
+            "fr": "Nom du flux",
+            "de": "Stream-Name",
+            "es": "Nombre de la fuente"
+          }
+        },
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "fr": "Titre",
+            "de": "Titel",
+            "es": "Título"
+          }
+        },
+        {
+          "key": "artist",
+          "type": "string",
+          "label": {
+            "en": "Artist",
+            "fr": "Artiste",
+            "de": "Interpret",
+            "es": "Artista"
+          }
+        }
+      ]
+    },
+    {
+      "key": "stream_stopped",
+      "label": {
+        "en": "Stream stopped",
+        "fr": "Flux arrêté",
+        "de": "Stream gestoppt",
+        "es": "Fuente detenida"
+      },
+      "description": {
+        "en": "A stream stops playing: paused, or no audio any more.",
+        "fr": "Un flux cesse de jouer : en pause, ou plus de son.",
+        "de": "Ein Stream hört auf zu spielen: pausiert oder kein Ton mehr.",
+        "es": "Una fuente deja de sonar: en pausa, o ya sin sonido."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Stream",
+            "fr": "Flux",
+            "de": "Stream",
+            "es": "Fuente"
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "stream",
+          "type": "string",
+          "label": {
+            "en": "Stream name",
+            "fr": "Nom du flux",
+            "de": "Stream-Name",
+            "es": "Nombre de la fuente"
+          }
+        },
+        {
+          "key": "title",
+          "type": "string",
+          "label": {
+            "en": "Title",
+            "fr": "Titre",
+            "de": "Titel",
+            "es": "Título"
+          }
+        },
+        {
+          "key": "artist",
+          "type": "string",
+          "label": {
+            "en": "Artist",
+            "fr": "Artiste",
+            "de": "Interpret",
+            "es": "Artista"
+          }
         }
       ]
     }
   ],
   "scene_actions": [
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+      "key": "set_volume",
+      "label": {
+        "en": "Set the volume of a room",
+        "fr": "Régler le volume d'une pièce",
+        "de": "Lautstärke eines Raums einstellen",
+        "es": "Ajustar el volumen de una habitación"
       },
       "timeout_seconds": 15,
       "fields": [
@@ -149,29 +370,323 @@
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
+          "label": {
+            "en": "Client (room)",
+            "fr": "Client (pièce)",
+            "de": "Client (Raum)",
+            "es": "Cliente (habitación)"
+          },
           "required": true
+        },
+        {
+          "key": "volume",
+          "type": "number",
+          "label": {
+            "en": "Volume (0 to 100)",
+            "fr": "Volume (0 à 100)",
+            "de": "Lautstärke (0 bis 100)",
+            "es": "Volumen (0 a 100)"
+          },
+          "required": true,
+          "min": 0,
+          "max": 100
+        }
+      ]
+    },
+    {
+      "key": "mute_all",
+      "label": {
+        "en": "Mute or unmute every room",
+        "fr": "Couper ou rétablir le son partout",
+        "de": "Überall stumm schalten oder Ton an",
+        "es": "Silenciar o activar todas las habitaciones"
+      },
+      "description": {
+        "en": "Every client of the server, connected or not.",
+        "fr": "Tous les clients du serveur, connectés ou non.",
+        "de": "Alle Clients des Servers, verbunden oder nicht.",
+        "es": "Todos los clientes del servidor, conectados o no."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "mode",
+          "type": "select",
+          "label": {
+            "en": "Sound",
+            "fr": "Son",
+            "de": "Ton",
+            "es": "Sonido"
+          },
+          "required": true,
+          "options": [
+            {
+              "value": "mute",
+              "label": {
+                "en": "Mute",
+                "fr": "Couper",
+                "de": "Stumm",
+                "es": "Silenciar"
+              }
+            },
+            {
+              "value": "unmute",
+              "label": {
+                "en": "Unmute",
+                "fr": "Rétablir",
+                "de": "Ton an",
+                "es": "Activar"
+              }
+            }
+          ]
         }
       ],
       "outputs": [
         {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "key": "count",
+          "type": "number",
+          "label": {
+            "en": "Clients changed",
+            "fr": "Clients modifiés",
+            "de": "Geänderte Clients",
+            "es": "Clientes cambiados"
+          }
+        }
+      ]
+    },
+    {
+      "key": "set_stream",
+      "label": {
+        "en": "Play another stream in a room",
+        "fr": "Changer le flux d'une pièce",
+        "de": "Anderen Stream in einem Raum spielen",
+        "es": "Cambiar la fuente de una habitación"
+      },
+      "description": {
+        "en": "The whole group of the client follows: Snapcast plays one stream per group.",
+        "fr": "Tout le groupe du client suit : Snapcast joue un flux par groupe.",
+        "de": "Die ganze Gruppe des Clients folgt: Snapcast spielt einen Stream pro Gruppe.",
+        "es": "Todo el grupo del cliente sigue: Snapcast reproduce una fuente por grupo."
+      },
+      "timeout_seconds": 15,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Client (room)",
+            "fr": "Client (pièce)",
+            "de": "Client (Raum)",
+            "es": "Cliente (habitación)"
+          },
+          "required": true
+        },
+        {
+          "key": "stream",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Stream",
+            "fr": "Flux",
+            "de": "Stream",
+            "es": "Fuente"
+          },
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "control_stream",
+      "label": {
+        "en": "Control a stream",
+        "fr": "Piloter un flux",
+        "de": "Stream steuern",
+        "es": "Controlar una fuente"
+      },
+      "description": {
+        "en": "Play, pause, next or previous, on a stream driven by a control script (Spotify, MPD...). Choose the stream, or a room to act on what it hears.",
+        "fr": "Lecture, pause, suivant ou précédent, sur un flux doté d'un script de contrôle (Spotify, MPD…). Choisissez le flux, ou une pièce pour agir sur ce qu'elle entend.",
+        "de": "Abspielen, Pause, weiter oder zurück, bei einem Stream mit Steuerskript (Spotify, MPD…). Wähle den Stream oder einen Raum, um auf das zu wirken, was er hört.",
+        "es": "Reproducir, pausa, siguiente o anterior, en una fuente con script de control (Spotify, MPD…). Elija la fuente, o una habitación para actuar sobre lo que escucha."
+      },
+      "timeout_seconds": 15,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Stream or room",
+            "fr": "Flux ou pièce",
+            "de": "Stream oder Raum",
+            "es": "Fuente o habitación"
+          },
+          "required": true
+        },
+        {
+          "key": "command",
+          "type": "select",
+          "label": {
+            "en": "Command",
+            "fr": "Commande",
+            "de": "Befehl",
+            "es": "Comando"
+          },
+          "required": true,
+          "options": [
+            {
+              "value": "play",
+              "label": {
+                "en": "Play",
+                "fr": "Lire",
+                "de": "Abspielen",
+                "es": "Reproducir"
+              }
+            },
+            {
+              "value": "pause",
+              "label": {
+                "en": "Pause",
+                "fr": "Pause",
+                "de": "Pause",
+                "es": "Pausa"
+              }
+            },
+            {
+              "value": "play_pause",
+              "label": {
+                "en": "Play / pause",
+                "fr": "Lecture / pause",
+                "de": "Abspielen / Pause",
+                "es": "Reproducir / pausa"
+              }
+            },
+            {
+              "value": "next",
+              "label": {
+                "en": "Next",
+                "fr": "Suivant",
+                "de": "Weiter",
+                "es": "Siguiente"
+              }
+            },
+            {
+              "value": "previous",
+              "label": {
+                "en": "Previous",
+                "fr": "Précédent",
+                "de": "Zurück",
+                "es": "Anterior"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "join_group",
+      "label": {
+        "en": "Group two rooms",
+        "fr": "Grouper deux pièces",
+        "de": "Zwei Räume gruppieren",
+        "es": "Agrupar dos habitaciones"
+      },
+      "description": {
+        "en": "The first client joins the group of the second, and plays its stream in sync.",
+        "fr": "Le premier client rejoint le groupe du second et joue son flux en synchro.",
+        "de": "Der erste Client tritt der Gruppe des zweiten bei und spielt dessen Stream synchron.",
+        "es": "El primer cliente se une al grupo del segundo y reproduce su fuente sincronizada."
+      },
+      "timeout_seconds": 15,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Client (room)",
+            "fr": "Client (pièce)",
+            "de": "Client (Raum)",
+            "es": "Cliente (habitación)"
+          },
+          "required": true
+        },
+        {
+          "key": "target",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Group of",
+            "fr": "Groupe de",
+            "de": "Gruppe von",
+            "es": "Grupo de"
+          },
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "leave_group",
+      "label": {
+        "en": "Ungroup a room",
+        "fr": "Dégrouper une pièce",
+        "de": "Raum aus der Gruppe lösen",
+        "es": "Desagrupar una habitación"
+      },
+      "description": {
+        "en": "The client leaves its group and gets a group of its own (same stream).",
+        "fr": "Le client quitte son groupe et forme un groupe à lui seul (même flux).",
+        "de": "Der Client verlässt seine Gruppe und bildet eine eigene (gleicher Stream).",
+        "es": "El cliente deja su grupo y forma uno propio (misma fuente)."
+      },
+      "timeout_seconds": 15,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Client (room)",
+            "fr": "Client (pièce)",
+            "de": "Client (Raum)",
+            "es": "Cliente (habitación)"
+          },
+          "required": true
         }
       ]
     }
   ],
   "widgets": [
     {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
+      "key": "rooms",
+      "label": {
+        "en": "Snapcast rooms",
+        "fr": "Pièces Snapcast",
+        "de": "Snapcast-Räume",
+        "es": "Habitaciones Snapcast"
       },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "description": {
+        "en": "Volume, mute and stream of each room, or of one room with its buttons.",
+        "fr": "Volume, sourdine et flux de chaque pièce, ou d'une pièce avec ses boutons.",
+        "de": "Lautstärke, Stumm und Stream jedes Raums, oder eines Raums mit Tasten.",
+        "es": "Volumen, silencio y fuente de cada habitación, o de una con sus botones."
+      },
+      "icon": "speaker",
+      "action_timeout_seconds": 15,
+      "settings": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Room (empty: all of them)",
+            "fr": "Pièce (vide : toutes)",
+            "de": "Raum (leer: alle)",
+            "es": "Habitación (vacío: todas)"
+          }
+        }
+      ]
     }
   ]
 }

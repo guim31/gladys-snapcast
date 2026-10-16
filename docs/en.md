@@ -1,61 +1,133 @@
-# Demo Devices Template
+# Snapcast
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+[Snapcast](https://github.com/badaix/snapcast) plays the same audio in sync in every room: a
+`snapserver` receives the streams (Spotify through librespot, AirPlay, MPD, a radio, a pipe...) and
+sends them to `snapclient`s, one per room. This integration brings the server into Gladys: the volume
+and mute of each room, which stream each room plays, the groups of rooms, and scenes when a speaker
+goes offline or a stream starts.
 
-## What you get
+It does not play music itself: the music comes from the sources of your Snapcast server (MPD,
+Spotify...). Tested against snapserver and snapclient 0.31 in Docker, without speakers: feedback
+welcome.
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+## Requirements
+
+- A Snapcast server (snapserver 0.26 or later; 0.31 tested) that Gladys can reach on the local
+  network.
+- Its JSON-RPC control port over TCP, **1705** by default, enabled (it is, unless the `[tcp]`
+  section of `snapserver.conf` says `enabled = false`).
+- Gladys 5.1 or later.
 
 ## Configuration
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+1. In Gladys, open **Integrations**, find **Snapcast** and install it.
+2. **Server address**: the IP address or host name of the machine that runs snapserver, for
+   example `192.168.1.20`. Add `:port`, or fill in **Control port**, if it is not 1705 (not the
+   HTTP port 1780 of Snapweb).
+3. **Language**: the language of the feature names and of the texts the integration creates. Feature
+   names are set when a device is added: choose it before adding the devices.
+4. Save. The integration connects, then shows each client and each stream in the **Discovery** tab
+   of the integration: add the ones you want.
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+The integration keeps one connection open to the server and follows every change live: a volume
+changed in Snapweb or another app shows up in Gladys at once. It reads the whole state again every
+minute and after each reconnection.
 
-## Actions
+## Devices
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+### Clients (rooms)
 
-## Scenes
+Each snapclient is a device, named after the name you gave it in Snapweb (or else its host name).
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+| Feature        | What it does                                                                  |
+| -------------- | ----------------------------------------------------------------------------- |
+| Volume         | 0 to 100, in both directions                                                  |
+| Mute           | On = sound off, in both directions                                            |
+| Connected      | Whether the snapclient is connected to the server                             |
+| Stream         | The stream the room plays; choosing another one switches **its whole group**  |
+| Playback state | Playing when its stream has audio                                             |
+| Now playing    | Artist and title when the stream reports them, else the stream name and state |
+| Play, Pause    | Act on the stream of the room, when a control script drives it (see Streams)  |
+| Previous, Next | Same                                                                          |
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+A client has the volume, play, pause and playback state of the Gladys **Music** box: add the box to a
+dashboard and choose the room.
 
-## Dashboard
+### Streams
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+Each stream of the server is a device too: its **playback state** and what it plays (**now
+playing**). A stream driven by a control script (librespot, MPD through `meta_mpd.py`, AirPlay,
+Plexamp... see the Snapcast documentation) also has **Play**, **Pause**, **Previous** and **Next**
+buttons. A plain pipe has no buttons: Snapcast cannot pause what it does not control.
+
+There is no device per group: Snapcast deletes a group when it is emptied and gives a new one a new
+identity, which would leave orphan devices in Gladys. Groups are handled through their clients
+(stream choice, actions below).
+
+## Dashboard widget
+
+**Snapcast rooms**:
+
+- without a room chosen: every client with what it plays and its volume (or "Muted", "Offline"),
+  and a **Mute all** / **Unmute all** button;
+- with a room chosen: its state and volume, the buttons **Volume −**, **Volume +**, **Mute** /
+  **Unmute**, and **Play** / **Pause** when its stream can be controlled, else **Next stream**.
+
+## Scene triggers
+
+| Trigger             | When                                                         | Variables             |
+| ------------------- | ------------------------------------------------------------ | --------------------- |
+| Client disconnected | A snapclient leaves the server (speaker off, network lost)   | client name           |
+| Client connected    | A snapclient joins the server again                          | client name           |
+| Stream started      | Audio starts flowing on a stream (someone casts to Spotify…) | stream, title, artist |
+| Stream stopped      | A stream stops playing (paused, no more audio)               | stream, title, artist |
+
+Each trigger can be limited to one client or one stream. Nothing fires for what happens while the
+server itself is unreachable.
+
+## Scene actions
+
+| Action                        | What it does                                                                 |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| Set the volume of a room      | Volume of a client, 0 to 100                                                 |
+| Mute or unmute every room     | Every client of the server; returns how many changed                         |
+| Play another stream in a room | The client's group switches to the chosen stream                             |
+| Control a stream              | Play, pause, play/pause, next, previous, on a stream or on what a room hears |
+| Group two rooms               | The first client joins the group of the second, in sync                      |
+| Ungroup a room                | The client gets a group of its own, same stream                              |
+
+The volume, the mute and the stream of a room can also be set with the standard "Set device value"
+action of Gladys.
+
+## Scene examples
+
+- **Quiet night**: at 11 pm, "Mute or unmute every room" → Mute. At 7 am, Unmute.
+- **Morning radio**: at 7 am on weekdays, "Play another stream in a room" → Kitchen, stream Radio,
+  then "Set the volume of a room" → Kitchen, 30.
+- **Music follows you**: when "Stream started" on Spotify, "Group two rooms" → Living room joins
+  Kitchen.
+- **Speaker unplugged**: when "Client disconnected" on Bathroom, send a message.
 
 ## Troubleshooting
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+- **"The Snapcast server does not answer"**: check the address, that snapserver runs, and that the
+  port is the TCP control port (1705 by default), not the stream port 1704 nor the HTTP port 1780.
+  A firewall must let Gladys reach it.
+- **A room shows "Offline"**: its snapclient is not connected to the server (machine off, wrong
+  server address on the client).
+- **"This stream cannot be controlled"**: the stream has no control script. Use a source that
+  reports its player (librespot, MPD with `meta_mpd.py`…) or control the player itself.
+- **A stream shows "Idle" while its player says playing**: no audio reaches snapserver; Snapcast
+  reports what it receives.
+- More detail: set the `LOG_LEVEL` of the integration to `debug`.
+
+## Limits
+
+- One Snapcast server per integration.
+- No authentication: snapserver's control port has none by default. A server that requires one
+  (optional in recent versions) is not supported.
+- No device per group (see Streams); the latency of a client and the names are changed in Snapweb.
+- The structure of a stream device depends on its control script: if a stream becomes controllable
+  later, Gladys offers to **Update** it in the Discovery tab.
+- Tested against snapserver and snapclient 0.31 in Docker, with a pipe stream and a scripted player,
+  without speakers. Feedback welcome on the forum.

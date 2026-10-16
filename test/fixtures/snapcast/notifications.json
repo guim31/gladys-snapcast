@@ -1,0 +1,308 @@
+[
+  {
+    "jsonrpc": "2.0",
+    "method": "Client.OnVolumeChanged",
+    "params": {
+      "id": "client-1",
+      "volume": {
+        "muted": true,
+        "percent": 42
+      }
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "Group.OnMute",
+    "params": {
+      "id": "4a8f3a71-35ce-b832-7425-fd62051b0b29",
+      "mute": true
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "Group.OnStreamChanged",
+    "params": {
+      "id": "4a8f3a71-35ce-b832-7425-fd62051b0b29",
+      "stream_id": "Music"
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "Client.OnNameChanged",
+    "params": {
+      "id": "client-1",
+      "name": "Salon"
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "Client.OnDisconnect",
+    "params": {
+      "client": {
+        "config": {
+          "instance": 1,
+          "latency": 0,
+          "name": "",
+          "volume": {
+            "muted": false,
+            "percent": 100
+          }
+        },
+        "connected": false,
+        "host": {
+          "arch": "x86_64",
+          "ip": "::ffff:192.0.2.32",
+          "mac": "02:00:00:00:00:32",
+          "name": "kitchen-pi",
+          "os": "Alpine Linux v3.22"
+        },
+        "id": "client-2",
+        "lastSeen": {
+          "sec": 1792140132,
+          "usec": 784520
+        },
+        "snapclient": {
+          "name": "Snapclient",
+          "protocolVersion": 2,
+          "version": "0.31.0"
+        }
+      },
+      "id": "client-2"
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "Client.OnConnect",
+    "params": {
+      "client": {
+        "config": {
+          "instance": 1,
+          "latency": 0,
+          "name": "",
+          "volume": {
+            "muted": false,
+            "percent": 100
+          }
+        },
+        "connected": true,
+        "host": {
+          "arch": "x86_64",
+          "ip": "::ffff:192.0.2.32",
+          "mac": "02:00:00:00:00:32",
+          "name": "kitchen-pi",
+          "os": "Alpine Linux v3.22"
+        },
+        "id": "client-2",
+        "lastSeen": {
+          "sec": 1792140135,
+          "usec": 334243
+        },
+        "snapclient": {
+          "name": "Snapclient",
+          "protocolVersion": 2,
+          "version": "0.31.0"
+        }
+      },
+      "id": "client-2"
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "Stream.OnProperties",
+    "params": {
+      "id": "Music",
+      "properties": {
+        "canControl": true,
+        "canGoNext": true,
+        "canGoPrevious": true,
+        "canPause": true,
+        "canPlay": true,
+        "canSeek": false,
+        "loopStatus": "none",
+        "metadata": {
+          "album": "Test Album",
+          "artist": ["Test Artist"],
+          "title": "Track 2"
+        },
+        "mute": false,
+        "playbackStatus": "playing",
+        "position": 0.0,
+        "rate": 1.0,
+        "shuffle": false,
+        "volume": 100
+      }
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "Stream.OnProperties",
+    "params": {
+      "id": "Music",
+      "properties": {
+        "canControl": true,
+        "canGoNext": true,
+        "canGoPrevious": true,
+        "canPause": true,
+        "canPlay": true,
+        "canSeek": false,
+        "loopStatus": "none",
+        "metadata": {
+          "album": "Test Album",
+          "artist": ["Test Artist"],
+          "title": "Track 2"
+        },
+        "mute": false,
+        "playbackStatus": "paused",
+        "position": 0.0,
+        "rate": 1.0,
+        "shuffle": false,
+        "volume": 100
+      }
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "Server.OnUpdate",
+    "params": {
+      "server": {
+        "groups": [
+          {
+            "clients": [
+              {
+                "config": {
+                  "instance": 1,
+                  "latency": 0,
+                  "name": "Salon",
+                  "volume": {
+                    "muted": true,
+                    "percent": 42
+                  }
+                },
+                "connected": true,
+                "host": {
+                  "arch": "x86_64",
+                  "ip": "::ffff:192.0.2.31",
+                  "mac": "02:00:00:00:00:31",
+                  "name": "livingroom-pi",
+                  "os": "Alpine Linux v3.22"
+                },
+                "id": "client-1",
+                "lastSeen": {
+                  "sec": 1792140151,
+                  "usec": 823821
+                },
+                "snapclient": {
+                  "name": "Snapclient",
+                  "protocolVersion": 2,
+                  "version": "0.31.0"
+                }
+              },
+              {
+                "config": {
+                  "instance": 1,
+                  "latency": 0,
+                  "name": "",
+                  "volume": {
+                    "muted": false,
+                    "percent": 100
+                  }
+                },
+                "connected": true,
+                "host": {
+                  "arch": "x86_64",
+                  "ip": "::ffff:192.0.2.32",
+                  "mac": "02:00:00:00:00:32",
+                  "name": "kitchen-pi",
+                  "os": "Alpine Linux v3.22"
+                },
+                "id": "client-2",
+                "lastSeen": {
+                  "sec": 1792140151,
+                  "usec": 418916
+                },
+                "snapclient": {
+                  "name": "Snapclient",
+                  "protocolVersion": 2,
+                  "version": "0.31.0"
+                }
+              }
+            ],
+            "id": "4a8f3a71-35ce-b832-7425-fd62051b0b29",
+            "muted": true,
+            "name": "",
+            "stream_id": "Music"
+          }
+        ],
+        "server": {
+          "host": {
+            "arch": "x86_64",
+            "ip": "",
+            "mac": "",
+            "name": "snapserver-host",
+            "os": "Alpine Linux v3.22"
+          },
+          "snapserver": {
+            "controlProtocolVersion": 1,
+            "name": "Snapserver",
+            "protocolVersion": 1,
+            "version": "0.31.0"
+          }
+        },
+        "streams": [
+          {
+            "id": "Radio",
+            "properties": {
+              "canControl": false,
+              "canGoNext": false,
+              "canGoPrevious": false,
+              "canPause": false,
+              "canPlay": false,
+              "canSeek": false
+            },
+            "status": "playing",
+            "uri": {
+              "fragment": "",
+              "host": "",
+              "path": "/tmp/radio",
+              "query": {
+                "chunk_ms": "20",
+                "codec": "flac",
+                "mode": "create",
+                "name": "Radio",
+                "sampleformat": "48000:16:2"
+              },
+              "raw": "pipe:///tmp/radio?chunk_ms=20&codec=flac&mode=create&name=Radio&sampleformat=48000:16:2",
+              "scheme": "pipe"
+            }
+          },
+          {
+            "id": "Music",
+            "properties": {
+              "canControl": false,
+              "canGoNext": false,
+              "canGoPrevious": false,
+              "canPause": false,
+              "canPlay": false,
+              "canSeek": false
+            },
+            "status": "idle",
+            "uri": {
+              "fragment": "",
+              "host": "",
+              "path": "/tmp/music",
+              "query": {
+                "chunk_ms": "20",
+                "codec": "flac",
+                "mode": "create",
+                "name": "Music",
+                "sampleformat": "48000:16:2"
+              },
+              "raw": "pipe:///tmp/music?chunk_ms=20&codec=flac&mode=create&name=Music&sampleformat=48000:16:2",
+              "scheme": "pipe"
+            }
+          }
+        ]
+      }
+    }
+  }
+]

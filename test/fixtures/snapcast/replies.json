@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {
+      "volume": {
+        "muted": true,
+        "percent": 42
+      }
+    }
+  },
+  {
+    "id": 2,
+    "jsonrpc": "2.0",
+    "result": {
+      "mute": true
+    }
+  },
+  {
+    "id": 3,
+    "jsonrpc": "2.0",
+    "result": {
+      "stream_id": "Music"
+    }
+  },
+  {
+    "id": 4,
+    "jsonrpc": "2.0",
+    "result": {
+      "name": "Salon"
+    }
+  },
+  {
+    "error": {
+      "code": 2,
+      "message": "Stream property canGoNext is false"
+    },
+    "id": 5,
+    "jsonrpc": "2.0"
+  },
+  {
+    "error": {
+      "code": -32603,
+      "data": "Group not found",
+      "message": "Internal error"
+    },
+    "id": 6,
+    "jsonrpc": "2.0"
+  }
+]
