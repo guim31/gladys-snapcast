@@ -66,18 +66,24 @@ export const STREAM_FEATURES = {
 export const STREAM_CONTROLS = ['play', 'pause', 'previous', 'next'];
 
 /**
- * The platform id of a Snapcast id: lower case, separators as dashes
- * (`00:21:6a:7d:74:fc#2` -> `00-21-6a-7d-74-fc-2`), plus a short hash when
- * characters were dropped that could tell two ids apart (accents, symbols).
+ * The platform id of a Snapcast id. Kept as is when already lower case
+ * letters, digits and dashes (`client-1`); a client MAC becomes dashed
+ * (`00:21:6a:7d:74:fc#2` -> `00-21-6a-7d-74-fc-2`, one way only). Anything else
+ * (a stream name chosen by the user: `Radio FIP`, `radio fip`) gets a short
+ * hash of the exact id, so two ids never share a device.
  */
 export function platformIdOf(id) {
-  const base = String(id)
+  const text = String(id);
+  if (/^[a-z0-9]+(-[a-z0-9]+)*$/.test(text)) {
+    return text;
+  }
+  if (/^([0-9a-f]{2}:){5}[0-9a-f]{2}(#\d+)?$/.test(text)) {
+    return text.replace(/[:#]/g, '-');
+  }
+  const base = text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  if (base !== '' && /^[A-Za-z0-9:._# -]+$/.test(String(id))) {
-    return base;
-  }
   const hash = createHash('sha1').update(String(id)).digest('hex').slice(0, 8);
   return base === '' ? hash : `${base}-${hash}`;
 }

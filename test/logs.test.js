@@ -97,3 +97,19 @@ test('Gladys refusing the states: one line, then one when it accepts them again'
     '[INFO] [snapcast-hub] States published again',
   ]);
 });
+
+test('a server that accepts but never answers: one line, not one per attempt', async (t) => {
+  const world = await createWorld();
+  t.after(() => world.stop());
+  await createAll(world);
+  const lines = captureLogs(t);
+  world.server.silent = true;
+  await until(() => world.gladys.fake.connectionStatus.connected === false, 3000, 'lost');
+  await sleep(1500); // several connections that never answer
+  world.server.silent = false;
+  await until(() => world.gladys.fake.connectionStatus.connected === true, 3000, 'back');
+  await sleep(50);
+  assert.equal(lines.length, 2, lines.join('\n'));
+  assert.match(lines[0], /\[WARN\].*Connection to the Snapcast server lost/);
+  assert.match(lines[1], /\[INFO\].*Connected to Snapserver/);
+});

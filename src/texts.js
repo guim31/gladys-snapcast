@@ -153,10 +153,10 @@ export const STATUS_TEXT = {
     es: 'La dirección del servidor no es válida: una dirección IP o un nombre de host, con :puerto si hace falta.',
   },
   unreachable: {
-    en: 'The Snapcast server does not answer. Check its address, its port (1705) and that it runs.',
-    fr: 'Le serveur Snapcast ne répond pas. Vérifiez son adresse, son port (1705) et qu’il tourne.',
-    de: 'Der Snapcast-Server antwortet nicht. Prüfe Adresse, Port (1705) und ob er läuft.',
-    es: 'El servidor Snapcast no responde. Compruebe su dirección, su puerto (1705) y que esté en marcha.',
+    en: 'The Snapcast server does not answer. Check its address, its control port and that it runs.',
+    fr: 'Le serveur Snapcast ne répond pas. Vérifiez son adresse, son port de contrôle et qu’il tourne.',
+    de: 'Der Snapcast-Server antwortet nicht. Prüfe Adresse, Steuerport und ob er läuft.',
+    es: 'El servidor Snapcast no responde. Compruebe su dirección, su puerto de control y que esté en marcha.',
   },
 };
 

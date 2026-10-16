@@ -5,6 +5,7 @@
 
 import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
 import { registerHandlers } from '../../src/app.js';
+import { platformIdOf } from '../../src/devices.js';
 import { FakeSnapserver, sleep, until } from './fakeSnapserver.js';
 
 export const FAST = { resyncMs: 400, debounceMs: 5, reloadMs: 5 };
@@ -32,14 +33,8 @@ export class MemoryStore {
   async flush() {}
 }
 
-const platform = (id) =>
-  id
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
-export const clientId = (id) => `ext:test-integration:client:${platform(id)}`;
-export const streamId = (id) => `ext:test-integration:stream:${platform(id)}`;
+export const clientId = (id) => `ext:test-integration:client:${platformIdOf(id)}`;
+export const streamId = (id) => `ext:test-integration:stream:${platformIdOf(id)}`;
 
 export async function createWorld({
   server,

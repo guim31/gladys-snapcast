@@ -67,6 +67,8 @@ export function registerHandlers(gladys, options = {}) {
   // changes); this only serves a Gladys that would poll anyway.
   gladys.onPoll(whenReady(() => hub.reload()));
   gladys.onDeviceCreated(whenReady((device) => hub.onDeviceCreated(device)));
+  // "Update" in the Discovery tab: the SDK forgot the states, publish them again.
+  gladys.onDeviceUpdated(whenReady((device) => hub.onDeviceCreated(device)));
   gladys.onConfigUpdated(whenReady((config) => hub.reconfigure(normalizeConfig(config))));
 
   for (const [key, handler] of Object.entries(SCENE_ACTIONS)) {

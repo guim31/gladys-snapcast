@@ -123,6 +123,8 @@ export class Hub {
   // --- Lifecycle -----------------------------------------------------------
 
   async start(config) {
+    // A configuration update may have set a client up before a failed start.
+    this.#teardown();
     this.config = config;
     const saved = (await this.store?.load()) ?? {};
     for (const id of Array.isArray(saved.controllable) ? saved.controllable : []) {
@@ -145,6 +147,9 @@ export class Hub {
       return;
     }
     this.#teardown();
+    // The rooms of the old server go offline in Gladys, rather than keep
+    // "playing" forever.
+    await this.publishStates();
     this.model = emptyModel();
     this.seen = null;
     this.serverError = undefined;
@@ -210,7 +215,12 @@ export class Hub {
 
   async #onOpen(client) {
     const ok = await this.reload();
-    if (!ok || client !== this.client) {
+    if (client !== this.client) {
+      return;
+    }
+    // Even after a failed first read: the next one is a minute away.
+    this.#scheduleResync();
+    if (!ok) {
       return;
     }
     const { clients, streams, version } = this.model;
@@ -220,7 +230,6 @@ export class Hub {
         ' ',
       ),
     );
-    this.#scheduleResync();
   }
 
   #onLost(client, reason) {
@@ -228,9 +237,15 @@ export class Hub {
       return;
     }
     clearTimeout(this.resyncTimer);
+    const wasOnline = this.online;
     this.online = false;
     this.serverError = reason;
-    logger.warn(`Connection to the Snapcast server lost (${reason}), reconnecting`);
+    // One line when a working server goes, not one per failed attempt.
+    if (wasOnline) {
+      logger.warn(`Connection to the Snapcast server lost (${reason}), reconnecting`);
+    } else {
+      logger.debug(`Connection to the Snapcast server closed again (${reason})`);
+    }
     this.#setStatus(false, 'unreachable');
     // The reference of the next read: no scene event for what changed while
     // the server was away.
@@ -279,6 +294,7 @@ export class Hub {
           return false;
         }
         const model = parseServer(result?.server);
+        client.healthy();
         this.model = model;
         this.online = true;
         if (this.serverError !== null && this.serverError !== undefined) {
@@ -428,9 +444,9 @@ export class Hub {
         playing ? TRIGGERS.STREAM_STARTED : TRIGGERS.STREAM_STOPPED,
         streamIds(this.gladys, stream.id).device,
         {
-          stream: this.streamName(stream),
-          title: stream.title || '',
-          artist: stream.artist || '',
+          stream: this.streamName(stream).slice(0, 200),
+          title: (stream.title || '').slice(0, 200),
+          artist: (stream.artist || '').slice(0, 200),
         },
       );
     }
@@ -661,10 +677,15 @@ export class Hub {
   /** Mutes or unmutes every client; returns how many changed. */
   async muteAll(muted) {
     this.#ready();
-    const targets = [...this.model.clients.values()].filter((c) => c.muted !== Boolean(muted));
+    muted = Boolean(muted);
+    const targets = [...this.model.clients.values()].filter((c) => c.muted !== muted);
     for (const client of targets) {
-      await this.setMute(client, muted);
+      await this.call('Client.SetVolume', {
+        id: client.id,
+        volume: client.volume === null ? { muted } : { muted, percent: client.volume },
+      });
     }
+    logger.info(`${muted ? 'Muted' : 'Unmuted'} ${targets.length} clients`);
     return targets.length;
   }
 

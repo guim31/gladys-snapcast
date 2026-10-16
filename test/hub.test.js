@@ -5,6 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { normalizeConfig } from '../src/config.js';
 import { FakeSnapserver, KITCHEN, LIVING, MUSIC, RADIO } from './helpers/fakeSnapserver.js';
 import {
   MemoryStore,
@@ -179,7 +180,7 @@ test('a new client: the whole status is read again, the device is published', as
   t.after(() => world.stop());
   world.server.addClient('00:11:22:33:44:55#2', 'bedroom-pi');
   await until(() => world.gladys.fake.discoveredDevices.length === 5, 2000, 'five devices');
-  assert.ok(deviceOf(world.gladys, clientId('00-11-22-33-44-55-2')));
+  assert.ok(deviceOf(world.gladys, 'ext:test-integration:client:00-11-22-33-44-55-2'));
 });
 
 test('groups: join, leave, and the stream follows the group', async (t) => {
@@ -302,4 +303,36 @@ test('the language changes: the names follow, the connection stays', async (t) =
   );
   assert.equal(world.server.sessions.size, connections);
   await until(() => state(world.gladys, MUSIC_ID, 'now_playing') === 'Music · Inactif', 2000, 'fr');
+});
+
+test('another server, or none: the rooms of the old one go offline', async (t) => {
+  const world = await ready();
+  t.after(() => world.stop());
+  await world.gladys.fake.configUpdated({ ...world.gladys.fake.config, host: '' });
+  await until(() => state(world.gladys, LIVING_ID, 'connected') === 0, 2000, 'offline');
+  assert.equal(state(world.gladys, LIVING_ID, 'playback_state'), 0);
+  await until(() => world.server.sessions.size === 0, 2000, 'the old connection closed');
+});
+
+test('a first read refused by the server is tried again', async (t) => {
+  const server = new FakeSnapserver();
+  const answer = server.server;
+  server.server = null; // Server.GetStatus answers garbage: { server: null }
+  await server.listen();
+  const world = await createWorld({ server });
+  t.after(() => world.stop());
+  await sleep(50);
+  assert.equal(world.gladys.fake.discoveredDevices?.length ?? 0, 0);
+  server.server = answer;
+  await until(() => world.gladys.fake.discoveredDevices?.length === 4, 3000, 'read again');
+});
+
+test('a start after a configuration update does not leave a second connection', async (t) => {
+  const world = await createWorld({ connect: false });
+  t.after(() => world.stop());
+  await world.hub.start(normalizeConfig(world.gladys.fake.config));
+  await world.hub.start(normalizeConfig(world.gladys.fake.config));
+  await until(() => world.hub.online, 2000, 'online');
+  await sleep(50);
+  assert.equal(world.server.sessions.size, 1);
 });

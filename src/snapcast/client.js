@@ -77,13 +77,18 @@ export class SnapcastClient extends EventEmitter {
     this.#drop('stopped');
   }
 
-  /** Drops the link and reconnects at once (the server stopped answering). */
+  /** The server answered: the next loss starts the backoff again from its minimum. */
+  healthy() {
+    this.failures = 0;
+  }
+
+  /** Drops the link and reconnects with the backoff (the server stopped answering). */
   reset(reason) {
     if (!this.running || !this.socket) {
       return;
     }
     this.#drop(reason);
-    this.#scheduleRetry(reason, 0);
+    this.#scheduleRetry();
   }
 
   /**
@@ -113,8 +118,8 @@ export class SnapcastClient extends EventEmitter {
     let socket;
     try {
       socket = this.connectFn({ host: this.host, port: this.port });
-    } catch (err) {
-      this.#scheduleRetry(err.message);
+    } catch {
+      this.#scheduleRetry();
       return;
     }
     this.socket = socket;
@@ -126,7 +131,7 @@ export class SnapcastClient extends EventEmitter {
     this.connectTimer = setTimeout(() => {
       if (this.socket === socket && !this.live) {
         this.#drop('connection timeout');
-        this.#scheduleRetry('connection timeout');
+        this.#scheduleRetry();
       }
     }, this.timings.connectTimeout);
     this.connectTimer.unref?.();
@@ -135,7 +140,6 @@ export class SnapcastClient extends EventEmitter {
         return;
       }
       clearTimeout(this.connectTimer);
-      this.failures = 0;
       this.live = true;
       this.emit('open');
     });
@@ -166,7 +170,7 @@ export class SnapcastClient extends EventEmitter {
       }
       const reason = socket.lastError ?? 'connection closed';
       this.#drop(reason);
-      this.#scheduleRetry(reason);
+      this.#scheduleRetry();
     });
   }
 
@@ -226,17 +230,15 @@ export class SnapcastClient extends EventEmitter {
     }
   }
 
-  #scheduleRetry(reason, forcedDelay) {
+  #scheduleRetry() {
     if (!this.running) {
       return;
     }
     this.failures += 1;
-    const delay =
-      forcedDelay ??
-      Math.min(
-        this.timings.reconnectMax,
-        this.timings.reconnectMin * 2 ** Math.min(this.failures - 1, 10),
-      );
+    const delay = Math.min(
+      this.timings.reconnectMax,
+      this.timings.reconnectMin * 2 ** Math.min(this.failures - 1, 10),
+    );
     clearTimeout(this.retryTimer);
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;

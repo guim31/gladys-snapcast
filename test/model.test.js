@@ -112,7 +112,10 @@ test('stream states and texts', () => {
 test('platform ids: stable, readable, distinct', () => {
   assert.equal(platformIdOf('00:21:6a:7d:74:fc'), '00-21-6a-7d-74-fc');
   assert.equal(platformIdOf('00:21:6a:7d:74:fc#2'), '00-21-6a-7d-74-fc-2');
-  assert.equal(platformIdOf('Radio FIP'), 'radio-fip');
+  assert.equal(platformIdOf('client-1'), 'client-1');
+  assert.match(platformIdOf('Radio FIP'), /^radio-fip-[0-9a-f]{8}$/);
+  const names = ['Radio FIP', 'radio fip', 'radio-fip', 'radio_fip', 'Radio.FIP'];
+  assert.equal(new Set(names.map(platformIdOf)).size, names.length, 'no collision');
   assert.match(platformIdOf('Radio é'), /^radio-[0-9a-f]{8}$/);
   assert.notEqual(platformIdOf('Radio é'), platformIdOf('Radio è'));
   assert.match(platformIdOf('ラジオ'), /^[0-9a-f]{8}$/);
