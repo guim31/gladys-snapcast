@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-16
+
 ### Added
 
 - First version: a Snapcast server in Gladys, followed live over its JSON-RPC control API.
@@ -25,4 +27,5 @@ the notes of the version's GitHub Release.
   control a stream, group two rooms, ungroup a room.
 - English, French, German and Spanish texts and documentation.
 
-[Unreleased]: https://github.com/guim31/gladys-snapcast/commits/main
+[Unreleased]: https://github.com/guim31/gladys-snapcast/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/guim31/gladys-snapcast/releases/tag/v1.0.0
