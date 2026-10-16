@@ -32,15 +32,20 @@ pushing.
 
 ```
 index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
+src/app.js                        registers every SDK handler on the hub (shared with the tests)
+src/hub.js                        the server, its model, devices, states, scene events, commands
+src/snapcast/client.js            JSON-RPC over TCP (1705): calls, notifications, reconnection
+src/snapcast/model.js             Server.GetStatus -> model, notifications applied to it
+src/devices.js                    client and stream devices, feature couples, states
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
 src/widgets.js                    dashboard widget handlers (manifest `widgets`)
+src/texts.js                      every text of the container, in en/fr/de/es
+src/store.js                      /data/snapcast-state.json (streams seen controllable)
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
+gladys-assistant-integration.json manifest: name, config_schema, triggers, actions, widget...
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys (mandatory)
 test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+test/helpers/fakeSnapserver.js    scripted Snapserver on the loopback, from the recorded fixtures
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +75,9 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in English, French, German and Spanish: action
+  messages, widget texts, feature names, manifest texts, and `docs/*.md`, kept
+  in sync (`test/i18n.test.js`).
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -184,6 +190,8 @@ code de ce dépôt. Compléter ce fichier quand un nouveau piège est découvert
   `requestWidgetRefresh` à la création d'un appareil. `validateWidgetContent` est exporté pour les
   tests, mais ne vérifie pas que les `external_id` liés existent : les croiser avec `buildDevice`.
 - Une ligne de `status` exige un `value` (nombre ou texte ≤ 40).
+- **4 boutons au plus par widget** : le budget du cœur jette le cinquième (`validateWidgetContent` le
+  signale, relevé sur gladys-snapcast).
 - Le cœur **jette un bouton dont la clé d'action est déjà prise** : clés numérotées.
 - Le vocabulaire des widgets n'a ni liste ni curseur, **par choix** du cœur. Seul un bouton
   `device_feature` numérique a un état actif natif.
@@ -233,3 +241,23 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## Snapcast (appris sur cette intégration)
+
+- API : JSON-RPC 2.0 sur TCP 1705, une ligne JSON par message (`\r\n` accepté). Pas
+  d'authentification par défaut. Vérifié sur snapserver 0.31 (Alpine `snapcast-server`).
+- **Le serveur ne renvoie pas la notification à la connexion qui a fait le changement**
+  (`Client.SetVolume`, `Group.SetStream`, `Group.SetClients`) : appliquer la réponse au modèle
+  (`Hub.call`). Les notifications d'un script de contrôle (`Stream.OnProperties`) arrivent à tous.
+- **Les groupes sont éphémères** : `Group.SetClients` supprime le groupe vidé et crée un groupe à
+  nouvel UUID pour un client retiré. D'où l'absence d'appareil par groupe (identifiants éternels).
+- `status` d'un flux = du son arrive (`playing`/`idle`) ; `properties.playbackStatus` = ce que dit le
+  lecteur derrière (un flux peut être `idle` avec `playbackStatus: playing`). `Stream.Control` sur
+  un flux sans script : erreur `2`, « Stream property canControl is false ».
+- La boîte **Musique** du cœur liste tout appareil ayant `music/play` et plante sans
+  `music/playback_state` ni `music/volume` : les boutons d'un appareil flux (sans volume) sont donc
+  des touches `television`.
+- Banc de test réel : image Alpine 3.22 + `snapcast-server snapcast-client ffmpeg nodejs`, flux
+  `pipe` nourri par `ffmpeg -f lavfi -i sine`, second flux avec `controlscript=` (un script Node
+  qui parle `Plugin.Stream.Player.*`, shebang obligatoire), clients `snapclient --hostID client-N
+--player file:filename=null`.

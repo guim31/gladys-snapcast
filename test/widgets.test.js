@@ -1,77 +1,118 @@
+// -----------------------------------------------------------------------------
+// The "Snapcast rooms" widget: both views fit the core vocabulary and budget
+// (validateWidgetContent), the buttons act on the server.
+// -----------------------------------------------------------------------------
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateWidgetContent } from '@gladysassistant/integration-sdk';
-import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
-import { buildDiscoveredDevices } from '../src/devices/index.js';
-import { simulateLanSession } from '../src/devices/plug.js';
-import { DEMO_STATUS_WIDGET, WIDGETS, refreshWidgets } from '../src/widgets.js';
-import { normalizeConfig } from '../src/config.js';
+import { KITCHEN, LIVING, MUSIC, RADIO } from './helpers/fakeSnapserver.js';
+import { clientId, createAll, createWorld, until } from './helpers/world.js';
+import { WIDGET_ACTIONS } from '../src/widgets.js';
 
-const gladys = createFakeGladys();
-const config = normalizeConfig();
-const demoStatus = WIDGETS[DEMO_STATUS_WIDGET];
+async function world(t) {
+  const w = await createWorld();
+  t.after(() => w.stop());
+  await createAll(w);
+  return w;
+}
 
-// What the SDK passes to onWidgetGet, plus the config index.js adds.
-const getContent = (cfg = config) =>
-  demoStatus.get(gladys, { settings: {}, language: 'en', units: 'metric', config: cfg });
+const get = async (gladys, settings, language = 'en') => {
+  const ack = await gladys.fake.widgetGet('rooms', { settings, language });
+  assert.equal(ack.success, true, ack.error);
+  assert.deepEqual(validateWidgetContent(ack.data.content), [], 'rendered as sent');
+  return ack.data.content;
+};
 
-test('the demo_status content is rendered exactly as sent', async () => {
-  // [] = nothing the core would drop, truncate or trim to the content budget.
-  assert.deepEqual(validateWidgetContent(await getContent()), []);
-});
+const buttons = (content) =>
+  content.components.filter((c) => c.type === 'button').map((c) => c.action.key);
 
-test('the degraded plug connection content is valid too', async () => {
-  simulateLanSession(false);
-  try {
-    const content = await getContent();
-    assert.deepEqual(validateWidgetContent(content), []);
-    const status = content.components.find((component) => component.type === 'status');
-    assert.ok(
-      status.items.some((item) => item.color === 'warning'),
-      'degraded shows a warning',
-    );
-  } finally {
-    simulateLanSession(true);
-  }
-});
-
-test('the live tiles reference features the integration publishes', async () => {
-  const featureIds = new Set(
-    buildDiscoveredDevices(gladys, config).flatMap((device) =>
-      device.features.map((feature) => feature.external_id),
-    ),
+test('without a room: every client in a list, and "Mute all"', async (t) => {
+  const { gladys, server } = await world(t);
+  server.setVolume(KITCHEN, 30, true);
+  await until(async () => (await get(gladys, {})).components[0].items[0].badge.text === 'Muted');
+  const content = await get(gladys, {}, 'fr');
+  const [list] = content.components;
+  assert.deepEqual(
+    list.items.map((i) => [i.title, i.subtitle, i.badge.text]),
+    [
+      ['kitchen-pi', 'Radio', 'Coupé'],
+      ['livingroom-pi', 'Radio', '100 %'],
+    ],
   );
-  const liveTiles = (await getContent()).components.filter((c) => c.device_feature);
-  assert.ok(liveTiles.length > 0, 'the template demonstrates a device-bound tile');
-  for (const tile of liveTiles) {
-    assert.ok(featureIds.has(tile.device_feature), `unknown feature ${tile.device_feature}`);
-  }
+  assert.deepEqual(buttons(content), ['mute_all']);
+
+  const ack = await gladys.fake.widgetAction('rooms', 'mute_all', {}, { settings: {} });
+  assert.equal(ack.data.message.fr, 'Son coupé.');
+  assert.equal(server.client(LIVING).config.volume.muted, true);
+  assert.deepEqual(buttons(await get(gladys, {})), ['unmute_all']);
 });
 
-test('every button action of the content is handled and answers a short toast', async () => {
-  const buttons = (await getContent()).components.filter((c) => c.type === 'button' && c.action);
-  assert.ok(buttons.length > 0, 'the template demonstrates a widget action');
-  for (const { action } of buttons) {
-    const message = await demoStatus.action(gladys, {
-      actionKey: action.key,
-      params: action.params ?? {},
-      settings: {},
-      config,
-    });
-    assert.ok(message.en, 'the toast carries at least the mandatory `en` text');
-    assert.ok(message.en.length <= 200, 'toasts are capped at 200 characters');
-  }
-});
-
-test('an unknown widget action fails, so the user sees the error', async () => {
-  await assert.rejects(
-    demoStatus.action(gladys, { actionKey: 'unknown', params: {}, settings: {}, config }),
-    /Unknown widget action/,
+test('one room: state, volume and its buttons', async (t) => {
+  const { gladys, server } = await world(t);
+  const settings = { device: clientId(LIVING) };
+  let content = await get(gladys, settings);
+  assert.deepEqual(content.components[0], {
+    type: 'text',
+    variant: 'heading',
+    text: 'livingroom-pi',
+  });
+  assert.equal(content.components[1].text, 'Radio');
+  assert.deepEqual(
+    content.components[2].items.map((i) => i.value),
+    ['Playing', '100 %'],
   );
+  // Radio is a pipe: no play/pause.
+  assert.deepEqual(buttons(content), ['volume_down', 'volume_up', 'mute', 'next_stream']);
+
+  let ack = await gladys.fake.widgetAction('rooms', 'volume_down', {}, { settings });
+  assert.equal(ack.data.message.en, 'Volume changed.');
+  assert.equal(server.client(LIVING).config.volume.percent, 95);
+
+  ack = await gladys.fake.widgetAction('rooms', 'next_stream', {}, { settings });
+  assert.equal(ack.data.message.en, 'Next stream.');
+  assert.equal(server.groupOf(LIVING).stream_id, MUSIC);
+  content = await get(gladys, settings);
+  assert.deepEqual(buttons(content), ['play_pause', 'volume_down', 'volume_up', 'mute']);
+  assert.equal(content.components[1].text, 'Music · Idle');
+
+  ack = await gladys.fake.widgetAction('rooms', 'play_pause', {}, { settings });
+  assert.equal(ack.data.message.en, 'Done.');
+  assert.deepEqual(server.calls.at(-1).params, { id: MUSIC, command: 'playPause' });
+
+  await gladys.fake.widgetAction('rooms', 'next_stream', {}, { settings });
+  assert.equal(server.groupOf(LIVING).stream_id, RADIO, 'round the list (an older widget)');
+
+  await gladys.fake.widgetAction('rooms', 'mute', {}, { settings });
+  assert.deepEqual(buttons(await get(gladys, settings)).at(2), 'unmute');
 });
 
-test('refreshWidgets nudges every widget', () => {
-  const fresh = createFakeGladys();
-  refreshWidgets(fresh);
-  assert.deepEqual(fresh.fake.widgetRefreshes, Object.keys(WIDGETS));
+test('an unknown room, an offline server, and the error toasts', async (t) => {
+  const { gladys, server } = await world(t);
+  let content = await get(gladys, { device: 'ext:test-integration:client:gone' });
+  assert.match(content.components[0].text, /not on the Snapcast server/);
+
+  const settings = { device: clientId(LIVING) };
+  const ack = await gladys.fake.widgetAction('rooms', 'play_pause', {}, { settings });
+  assert.match(ack.data.message.en, /cannot be controlled/);
+
+  await server.close();
+  await until(() => gladys.fake.connectionStatus.connected === false, 2000, 'lost');
+  content = await get(gladys, settings);
+  assert.equal(content.components[2].items[0].value, 'Offline');
+  assert.deepEqual(buttons(content), []);
+  assert.deepEqual(buttons(await get(gladys, {})), []);
+});
+
+test('every widget button the code renders is a known action', () => {
+  assert.deepEqual([...new Set(WIDGET_ACTIONS)].sort(), [
+    'mute',
+    'mute_all',
+    'next_stream',
+    'play_pause',
+    'unmute',
+    'unmute_all',
+    'volume_down',
+    'volume_up',
+  ]);
 });
