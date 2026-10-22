@@ -1,6 +1,6 @@
 {
   "name": "gladys-snapcast",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Gladys Assistant integration for Snapcast multiroom audio (snapserver, snapclient).",
   "type": "module",
