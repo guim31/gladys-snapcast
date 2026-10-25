@@ -1,37 +1,56 @@
 // -----------------------------------------------------------------------------
 // Snapcast clients and streams -> Gladys devices, and the model -> states.
 //
-// A client (a room, a snapclient) is the device users act on. Couples chosen
-// among those the Gladys front knows (test/gladys-rules.test.js):
-// - volume, play, pause, previous, next, playback_state: the `music` category,
-//   the one the core "Music" dashboard box reads and drives (it needs all of
-//   them on one device). The buttons act on the stream the client's group
-//   plays (Stream.Control): an error when that stream cannot be controlled;
-// - mute: switch/binary, on = muted (a toggle that shows its state);
+// A client (a room, a snapclient) is the device users act on, and the player
+// of the Gladys "Music" dashboard box. Couples chosen among those the Gladys
+// front knows (test/gladys-rules.test.js):
+// - the `music` category: volume and mute of the room; play, pause,
+//   previous, next (one-shot commands kept for the scenes and dashboards made
+//   before Gladys 5.3); playback_state (0 paused, 1 playing, 2 idle); and the
+//   "now playing" of Gladys 5.3: title, artist, album, artwork (an image key
+//   served by src/artwork.js), duration, position, shuffle and repeat. What
+//   plays in a room is what the stream of its group plays: these features
+//   follow that stream, and the commands go to it (Stream.Control,
+//   Stream.SetProperty). They are published through publishNowPlaying
+//   (src/hub.js);
 // - connected: presence-sensor/binary, read only;
 // - stream: text/select, the streams of the server (changes the stream of the
 //   client's group: Snapcast plays a stream per group);
-// - now_playing: text/text, read only.
+// - now_playing: text/text, read only ("Artist – Title", kept from 1.0).
+//
+// playback_state and position are writable on every room, and a command the
+// stream of the room cannot carry out is refused with a message (like the
+// play/pause buttons of 1.0): the core leaves read_only out of the structure
+// it compares ("Update"), so a room added before a stream could be driven
+// would otherwise stay read-only for good. shuffle and repeat are features
+// of their own: they exist once a stream of the server reported them
+// (remembered in /data, not the current stream, so a room switching streams
+// does not change its structure).
+// Before 1.1.0, mute was switch/binary: same external id, the "Update" of the
+// Discover tab converts it in place (same 0/1 values).
 //
 // A stream (a source) is a device too: its state and what it plays, and,
 // when a control script drives it, play/pause/previous/next as television
-// keys (push buttons in the device box; music keys without a music volume
-// would break the core Music box, which lists every device with music/play).
+// keys (push buttons in the device box).
 //
 // No device per group: Snapserver deletes a group once emptied and gives a
 // new id to a new one (checked on 0.31), while a Gladys external id is
 // forever. The group is reached through its clients.
 //
 // External ids come from the Snapcast ids (client MAC or --hostID, stream id),
-// never from names. Feature keys are forever.
+// never from names. Feature keys are forever, and the keys of the music
+// features equal their type: the default ids of publishNowPlaying.
 // -----------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';
 import {
   DEVICE_FEATURE_CATEGORIES as CAT,
   DEVICE_FEATURE_TYPES as TYPE,
+  DEVICE_FEATURE_UNITS,
+  MUSIC_PLAYBACK_STATE,
+  MUSIC_REPEAT_MODE,
 } from '@gladysassistant/integration-sdk';
-import { isStreamPlaying, nowPlaying, streamOfClient } from './snapcast/model.js';
+import { nowPlaying, positionNow, streamOfClient } from './snapcast/model.js';
 import { CLIENT_NAMES, STATE_LABELS, STREAM_NAMES, pick } from './texts.js';
 
 export const CLIENT_TYPE = 'client';
@@ -39,28 +58,59 @@ export const STREAM_TYPE = 'stream';
 
 const MAX_TEXT = 200;
 
-// key -> [category, type, read_only, min, max, has_feedback]
+// Bound of duration and position (a day: a live stream reports none).
+export const MAX_SECONDS = 86_400;
+
+const IDLE = MUSIC_PLAYBACK_STATE.IDLE;
+const SECONDS = DEVICE_FEATURE_UNITS.SECONDS;
+
+// key -> [category, type, read_only, min, max, has_feedback, unit].
 export const CLIENT_FEATURES = {
   volume: [CAT.MUSIC, TYPE.MUSIC.VOLUME, false, 0, 100, true],
-  mute: [CAT.SWITCH, TYPE.SWITCH.BINARY, false, 0, 1, true],
+  mute: [CAT.MUSIC, TYPE.MUSIC.MUTE, false, 0, 1, true],
   connected: [CAT.PRESENCE_SENSOR, TYPE.SENSOR.BINARY, true, 0, 1, false],
   stream: [CAT.TEXT, TYPE.TEXT.SELECT, false, 0, 0, true],
-  playback_state: [CAT.MUSIC, TYPE.MUSIC.PLAYBACK_STATE, true, 0, 1, false],
+  playback_state: [CAT.MUSIC, TYPE.MUSIC.PLAYBACK_STATE, false, 0, IDLE, true],
   play: [CAT.MUSIC, TYPE.MUSIC.PLAY, false, 0, 1, false],
   pause: [CAT.MUSIC, TYPE.MUSIC.PAUSE, false, 0, 1, false],
   previous: [CAT.MUSIC, TYPE.MUSIC.PREVIOUS, false, 0, 1, false],
   next: [CAT.MUSIC, TYPE.MUSIC.NEXT, false, 0, 1, false],
   now_playing: [CAT.TEXT, TYPE.TEXT.TEXT, true, 0, 0, false],
+  title: [CAT.MUSIC, TYPE.MUSIC.TITLE, true, 0, 0, false],
+  artist: [CAT.MUSIC, TYPE.MUSIC.ARTIST, true, 0, 0, false],
+  album: [CAT.MUSIC, TYPE.MUSIC.ALBUM, true, 0, 0, false],
+  artwork: [CAT.MUSIC, TYPE.MUSIC.ARTWORK, true, 0, 0, false],
+  duration: [CAT.MUSIC, TYPE.MUSIC.DURATION, true, 0, MAX_SECONDS, false, SECONDS],
+  position: [CAT.MUSIC, TYPE.MUSIC.POSITION, false, 0, MAX_SECONDS, true, SECONDS],
+  shuffle: [CAT.MUSIC, TYPE.MUSIC.SHUFFLE, false, 0, 1, true], // see clientFeatureKeys
+  repeat: [CAT.MUSIC, TYPE.MUSIC.REPEAT, false, 0, MUSIC_REPEAT_MODE.ONE, true], // idem
 };
 
 export const STREAM_FEATURES = {
-  playback_state: [CAT.MUSIC, TYPE.MUSIC.PLAYBACK_STATE, true, 0, 1, false],
+  playback_state: [CAT.MUSIC, TYPE.MUSIC.PLAYBACK_STATE, true, 0, IDLE, false],
   now_playing: [CAT.TEXT, TYPE.TEXT.TEXT, true, 0, 0, false],
   play: [CAT.TELEVISION, TYPE.TELEVISION.PLAY, false, 0, 1, false],
   pause: [CAT.TELEVISION, TYPE.TELEVISION.PAUSE, false, 0, 1, false],
   previous: [CAT.TELEVISION, TYPE.TELEVISION.PREVIOUS, false, 0, 1, false],
   next: [CAT.TELEVISION, TYPE.TELEVISION.NEXT, false, 0, 1, false],
 };
+
+/**
+ * The optional music features of a room: shuffle and repeat, once a stream
+ * of the server driven by a control script reported them (src/hub.js
+ * remembers it).
+ * @typedef {{ shuffle: boolean, repeat: boolean }} Capabilities
+ */
+export const NO_CAPABILITIES = Object.freeze({ shuffle: false, repeat: false });
+
+/** What a stream shows now. */
+export function streamCapabilities(stream) {
+  const control = stream?.canControl === true;
+  return {
+    shuffle: control && stream.shuffle !== null,
+    repeat: control && stream.loopStatus !== null,
+  };
+}
 
 // Published only for a stream that a control script drives.
 export const STREAM_CONTROLS = ['play', 'pause', 'previous', 'next'];
@@ -93,20 +143,33 @@ export const streamIds = (gladys, id) => gladys.externalIds(STREAM_TYPE, platfor
 
 function features(ids, table, names, keys = Object.keys(table)) {
   return keys.map((key) => {
-    const [category, type, readOnly, min, max, hasFeedback] = table[key];
-    return {
+    const [category, type, readOnly, min, max, hasFeedback, unit] = table[key];
+    const feature = {
       name: names[key],
       external_id: ids.feature(key),
       category,
       type,
       read_only: readOnly,
       has_feedback: hasFeedback,
-      // A select or a text has no history worth keeping.
-      keep_history: category !== CAT.TEXT,
+      // A select or a text has no history worth keeping; the core forces
+      // false on the music category.
+      keep_history: category !== CAT.TEXT && category !== CAT.MUSIC,
       min,
       max,
     };
+    if (unit) {
+      feature.unit = unit;
+    }
+    return feature;
   });
+}
+
+/** The music features of a client, by the capabilities of the server. */
+export function clientFeatureKeys(capabilities = NO_CAPABILITIES) {
+  return Object.keys(CLIENT_FEATURES).filter(
+    (key) =>
+      (key !== 'shuffle' || capabilities.shuffle) && (key !== 'repeat' || capabilities.repeat),
+  );
 }
 
 /**
@@ -114,18 +177,24 @@ function features(ids, table, names, keys = Object.keys(table)) {
  * @param {object} client see src/snapcast/model.js
  * @param {object} model the whole model (for the stream options)
  * @param {string} language
+ * @param {Capabilities} [capabilities]
  */
-export function buildClientDevice(gladys, client, model, language) {
+export function buildClientDevice(gladys, client, model, language, capabilities = NO_CAPABILITIES) {
   const ids = clientIds(gladys, client.id);
-  const list = features(ids, CLIENT_FEATURES, pick(CLIENT_NAMES, language));
+  const list = features(
+    ids,
+    CLIENT_FEATURES,
+    pick(CLIENT_NAMES, language),
+    clientFeatureKeys(capabilities),
+  );
+  const byKey = (key) => list.find((feature) => feature.external_id === ids.feature(key));
   const options = [...model.streams.values()].map((stream, index) => ({
     value: stream.id,
     label: stream.name.slice(0, 60),
     sort_order: index,
   }));
   if (options.length > 0) {
-    list.find((feature) => feature.external_id === ids.feature('stream')).supported_options =
-      options;
+    byKey('stream').supported_options = options;
   }
   return {
     name: client.name.slice(0, 60),
@@ -195,25 +264,103 @@ export function clientText(client, model, language) {
   return streamText(streamOfClient(model, client), language);
 }
 
-/** The states of a client, in the publishStates format. */
+/** The Gladys playback state of a stream (MUSIC_PLAYBACK_STATE). */
+export function playbackState(stream) {
+  const state = streamState(stream);
+  if (state === 'playing') {
+    return MUSIC_PLAYBACK_STATE.PLAYING;
+  }
+  return state === 'paused' ? MUSIC_PLAYBACK_STATE.PAUSED : IDLE;
+}
+
+// MPRIS loopStatus <-> MUSIC_REPEAT_MODE.
+const REPEAT_FROM_LOOP = {
+  none: MUSIC_REPEAT_MODE.OFF,
+  playlist: MUSIC_REPEAT_MODE.ALL,
+  track: MUSIC_REPEAT_MODE.ONE,
+};
+export const LOOP_FROM_REPEAT = {
+  [MUSIC_REPEAT_MODE.OFF]: 'none',
+  [MUSIC_REPEAT_MODE.ALL]: 'playlist',
+  [MUSIC_REPEAT_MODE.ONE]: 'track',
+};
+
+/**
+ * The snapshot given to publishNowPlaying for a client (Gladys 5.3): what the
+ * stream of its group plays. Nothing loaded (a stream without audio nor
+ * metadata, a client offline): the texts are cleared explicitly (an absent
+ * key means "unchanged"). A stream with audio but no metadata (a plain pipe)
+ * shows its name as the title, as a radio shows its station, with no
+ * duration (live). A stream stopped with a track still reported keeps it on
+ * screen, idle.
+ * @param {object} client
+ * @param {object|null} stream the stream of its group
+ * @param {object} options
+ * @param {Capabilities} [options.capabilities] the features the device has
+ * @param {string|null} [options.artworkUrl] see src/artwork.js
+ * @param {number} [options.now] ms
+ */
+export function clientNowPlaying(client, stream, options = {}) {
+  const { capabilities = NO_CAPABILITIES, artworkUrl = null, now = Date.now() } = options;
+  const heard = client.connected && stream ? stream : null;
+  const state = heard ? playbackState(heard) : IDLE;
+  const result = {
+    playback_state: state,
+    title: '',
+    artist: '',
+    album: '',
+    artwork_url: null,
+    duration: 0,
+    position: 0,
+  };
+  if (heard && (heard.title || state !== IDLE)) {
+    result.title = heard.title || heard.name;
+    result.artist = heard.artist;
+    result.album = heard.album;
+    result.artwork_url = artworkUrl;
+    // A source that reports a duration but never a position (Snapserver's
+    // librespot stream): no progress bar ("Live") rather than a bar that
+    // runs from an old sample.
+    result.duration =
+      heard.position === null ? 0 : Math.min(MAX_SECONDS, Math.round(heard.duration));
+    if (state !== IDLE) {
+      const position = positionNow(heard, now);
+      if (position === null) {
+        // Unknown, or a sample of unknown age (found by the first read):
+        // left unchanged rather than a value that drifts or jumps back.
+        delete result.position;
+      } else {
+        result.position = position;
+      }
+    }
+  }
+  if (capabilities.shuffle) {
+    result.shuffle = heard?.shuffle === true;
+  }
+  if (capabilities.repeat) {
+    result.repeat = REPEAT_FROM_LOOP[heard?.loopStatus] ?? MUSIC_REPEAT_MODE.OFF;
+  }
+  if (client.volume !== null) {
+    result.volume = client.volume;
+  }
+  result.mute = client.muted;
+  return result;
+}
+
+/**
+ * The states of a client outside the music category, in the publishStates
+ * format (the music ones go through clientNowPlaying).
+ */
 export function buildClientStates(gladys, client, model, language) {
   const ids = clientIds(gladys, client.id);
   const stream = streamOfClient(model, client);
   const states = [
-    { device_feature_external_id: ids.feature('mute'), state: client.muted ? 1 : 0 },
     { device_feature_external_id: ids.feature('connected'), state: client.connected ? 1 : 0 },
-    {
-      device_feature_external_id: ids.feature('playback_state'),
-      state: client.connected && isStreamPlaying(stream) ? 1 : 0,
-    },
     {
       device_feature_external_id: ids.feature('now_playing'),
       text: clientText(client, model, language),
     },
   ];
-  if (client.volume !== null) {
-    states.push({ device_feature_external_id: ids.feature('volume'), state: client.volume });
-  }
   if (stream) {
     states.push({ device_feature_external_id: ids.feature('stream'), text: stream.id });
   }
@@ -224,10 +371,7 @@ export function buildClientStates(gladys, client, model, language) {
 export function buildStreamStates(gladys, stream, language) {
   const ids = streamIds(gladys, stream.id);
   return [
-    {
-      device_feature_external_id: ids.feature('playback_state'),
-      state: isStreamPlaying(stream) ? 1 : 0,
-    },
+    { device_feature_external_id: ids.feature('playback_state'), state: playbackState(stream) },
     { device_feature_external_id: ids.feature('now_playing'), text: streamText(stream, language) },
   ];
 }

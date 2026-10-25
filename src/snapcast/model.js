@@ -10,6 +10,13 @@
 // - a stream is a source (`pipe`, `librespot`, `airplay`, `meta`...); its
 //   `status` says whether audio flows, its `properties` (0.26+) what a control
 //   script reports: playback status, metadata, what can be controlled.
+//
+// The position a control script reports is a sample: Snapserver keeps it as
+// sent and does not move it while the track plays. The model keeps the
+// instant it was taken (`positionAt`), carried over when a later read gives
+// the same sample, so the extrapolated position never jumps back to it. A
+// sample found by the first read (a start, a new server) may be minutes old:
+// its instant is unknown (null) until the script sends a new one.
 // -----------------------------------------------------------------------------
 
 const str = (value) => (typeof value === 'string' ? value : '');
@@ -39,7 +46,30 @@ function artistsOf(value) {
   return str(value);
 }
 
-function parseProperties(stream, properties) {
+const finite = (value) => {
+  const number = Number(value);
+  return typeof value === 'number' && Number.isFinite(number) ? number : null;
+};
+
+// MPRIS loopStatus (Snapcast stream properties).
+const LOOP_STATUSES = ['none', 'track', 'playlist'];
+
+function artDataOf(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const data = str(value.data);
+  const extension = str(value.extension).toLowerCase();
+  return data === '' ? null : { data, extension };
+}
+
+/**
+ * @param {object} stream the stream being built
+ * @param {object} properties the `properties` of the stream (0.26+)
+ * @param {object|undefined} previous the same stream in the model, if any
+ * @param {number} now ms
+ */
+function parseProperties(stream, properties, previous, now) {
   const props = properties && typeof properties === 'object' ? properties : {};
   const metadata = props.metadata && typeof props.metadata === 'object' ? props.metadata : {};
   stream.canControl = props.canControl === true;
@@ -47,28 +77,48 @@ function parseProperties(stream, properties) {
   stream.canPause = props.canPause === true;
   stream.canGoNext = props.canGoNext === true;
   stream.canGoPrevious = props.canGoPrevious === true;
+  stream.canSeek = props.canSeek === true;
   stream.playbackStatus = str(props.playbackStatus) || null;
   stream.title = str(metadata.title).trim() || str(metadata.name).trim();
   stream.artist = artistsOf(metadata.artist).trim();
   stream.album = str(metadata.album).trim();
+  const duration = finite(metadata.duration);
+  stream.duration = duration !== null && duration > 0 ? duration : 0;
+  stream.artUrl = str(metadata.artUrl).trim();
+  stream.artData = artDataOf(metadata.artData);
+  stream.shuffle = typeof props.shuffle === 'boolean' ? props.shuffle : null;
+  stream.loopStatus = LOOP_STATUSES.includes(props.loopStatus) ? props.loopStatus : null;
+  const position = finite(props.position);
+  stream.position = position !== null && position >= 0 ? position : null;
+  const sameSample =
+    previous !== undefined &&
+    previous.positionAt !== undefined &&
+    previous.position === stream.position &&
+    previous.playbackStatus === stream.playbackStatus &&
+    previous.status === stream.status &&
+    previous.title === stream.title;
+  stream.positionAt = sameSample ? previous.positionAt : now;
 }
 
-function parseStream(raw) {
+function parseStream(raw, previous, now) {
   const stream = {
     id: str(raw?.id),
     name: str(raw?.uri?.query?.name).trim() || str(raw?.id),
     scheme: str(raw?.uri?.scheme),
     status: str(raw?.status) || 'unknown',
   };
-  parseProperties(stream, raw?.properties);
+  // parseProperties compares with `previous`, status included.
+  parseProperties(stream, raw?.properties, previous && { ...previous }, now);
   return stream;
 }
 
 /**
  * The `server` object of Server.GetStatus (or of Server.OnUpdate) -> model.
+ * `previous`: the model it replaces; null for a first read, whose position
+ * samples have no known instant (positionAt null).
  * @returns {{ version: string, clients: Map<string, object>, groups: Map<string, object>, streams: Map<string, object> }}
  */
-export function parseServer(server) {
+export function parseServer(server, previous = null, now = Date.now()) {
   const model = {
     version: str(server?.server?.snapserver?.version),
     clients: new Map(),
@@ -95,7 +145,10 @@ export function parseServer(server) {
     });
   }
   for (const raw of Array.isArray(server?.streams) ? server.streams : []) {
-    const stream = parseStream(raw);
+    const stream = parseStream(raw, previous?.streams.get(str(raw?.id)), now);
+    if (previous === null) {
+      stream.positionAt = null;
+    }
     if (stream.id !== '') {
       model.streams.set(stream.id, stream);
     }
@@ -108,7 +161,7 @@ export function parseServer(server) {
  * @returns {'changed' | 'unchanged' | 'reload'} `reload` when the model cannot
  *   follow (a client or group it does not know): read the whole status again.
  */
-export function applyNotification(model, method, params = {}) {
+export function applyNotification(model, method, params = {}, now = Date.now()) {
   const client = model.clients.get(params.id);
   const group = model.groups.get(params.id);
   const stream = model.streams.get(params.id);
@@ -159,7 +212,7 @@ export function applyNotification(model, method, params = {}) {
       group.name = str(params.name).trim();
       return 'changed';
     case 'Stream.OnUpdate': {
-      const next = parseStream(params.stream);
+      const next = parseStream(params.stream, model.streams.get(params.stream?.id), now);
       if (next.id === '') {
         return 'reload';
       }
@@ -170,10 +223,10 @@ export function applyNotification(model, method, params = {}) {
       if (!stream) {
         return 'reload';
       }
-      parseProperties(stream, params.properties);
+      parseProperties(stream, params.properties, { ...stream }, now);
       return 'changed';
     case 'Server.OnUpdate': {
-      const next = parseServer(params.server);
+      const next = parseServer(params.server, model, now);
       model.clients = next.clients;
       model.groups = next.groups;
       model.streams = next.streams;
@@ -206,4 +259,21 @@ export function nowPlaying(stream) {
 export function streamOfClient(model, client) {
   const group = client ? model.groups.get(client.groupId) : null;
   return group ? (model.streams.get(group.streamId) ?? null) : null;
+}
+
+/**
+ * The position of a stream now, in seconds: the reported sample moved on by
+ * the time elapsed while it plays, bounded by the duration when known.
+ * @returns {number|null} null when the control script reports no position,
+ *   or one whose instant is unknown (found by the first read)
+ */
+export function positionNow(stream, now = Date.now()) {
+  if (stream?.position === null || stream?.position === undefined || stream.positionAt === null) {
+    return null;
+  }
+  let position = stream.position;
+  if (isStreamPlaying(stream)) {
+    position += Math.max(0, now - stream.positionAt) / 1000;
+  }
+  return stream.duration > 0 ? Math.min(position, stream.duration) : position;
 }

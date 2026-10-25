@@ -49,8 +49,11 @@ test('the manifest version is the package version, and the image is tagged with 
   assert.ok(manifest.docker_image.endsWith(`:${manifest.version}`), manifest.docker_image);
 });
 
-test('scene triggers, scene actions and widgets: Gladys >= 5.1.0 (no widget form)', () => {
-  assert.equal(manifest.gladys_version, '>=5.1.0');
+test('the music field (artwork only, no catalog) needs Gladys >= 5.3.0', () => {
+  assert.equal(manifest.gladys_version, '>=5.3.0');
+  // Snapcast has no library, search nor queue: the artwork is the only music
+  // operation, and it needs no flag.
+  assert.deepEqual(manifest.music, {});
 });
 
 test('config_schema: the defaults and options of the code', () => {

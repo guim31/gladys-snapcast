@@ -5,23 +5,30 @@
 // Reading: one permanent JSON-RPC connection. The whole status is read on
 // each connection (Server.GetStatus), then the pushed notifications keep the
 // model up to date; a full read every minute catches anything missed and
-// tells a dead link from a quiet one. Only the changes reach Gladys
-// (publishChangedStates), debounced, with a heartbeat.
+// tells a dead link from a quiet one. Only the changes reach Gladys,
+// debounced: the music features of a room through publishNowPlaying (diffed
+// by the SDK, Gladys 5.3), the others through publishChangedStates, with a
+// heartbeat.
 //
 // Snapserver does not send a notification back to the connection that made
 // the change: the answer of each command is applied to the model instead.
 // -----------------------------------------------------------------------------
 
 import { createLogger } from '@gladysassistant/integration-sdk';
+import { MUSIC_PLAYBACK_STATE } from '@gladysassistant/integration-sdk';
+import { Artwork } from './artwork.js';
 import {
   CLIENT_TYPE,
+  LOOP_FROM_REPEAT,
   STREAM_TYPE,
   buildClientDevice,
   buildClientStates,
   buildStreamDevice,
   buildStreamStates,
   clientIds,
+  clientNowPlaying,
   featureKeyOf,
+  streamCapabilities,
   streamIds,
 } from './devices.js';
 import { SnapcastClient, SnapcastError } from './snapcast/client.js';
@@ -65,7 +72,18 @@ export const STREAM_COMMANDS = {
   play_pause: 'playPause',
   next: 'next',
   previous: 'previous',
+  stop: 'stop',
 };
+
+// playback_state written by the Gladys 5.3 music box -> Stream.Control.
+const PLAYBACK_COMMANDS = {
+  [MUSIC_PLAYBACK_STATE.PAUSED]: 'pause',
+  [MUSIC_PLAYBACK_STATE.PLAYING]: 'play',
+  [MUSIC_PLAYBACK_STATE.IDLE]: 'stop',
+};
+
+// What the streams have shown, remembered by stream id (src/store.js).
+const CAPABILITY_KEYS = ['shuffle', 'repeat'];
 
 /** An Error carrying a coded, multi-language message. */
 export class CommandError extends Error {
@@ -87,9 +105,10 @@ const emptyModel = () => ({
 export class Hub {
   /**
    * @param {{ gladys: object, store?: object, connect?: Function,
-   *   timings?: object, clientTimings?: object, now?: () => number }} options
+   *   timings?: object, clientTimings?: object, now?: () => number,
+   *   fetch?: Function }} options
    */
-  constructor({ gladys, store, connect, timings, clientTimings, now }) {
+  constructor({ gladys, store, connect, timings, clientTimings, now, fetch }) {
     this.gladys = gladys;
     this.store = store ?? null;
     this.connect = connect;
@@ -103,6 +122,9 @@ export class Hub {
     this.serverError = undefined; // undefined: never tried; null: fine; else the reason
     this.lastStatus = null;
     this.controllable = new Set(); // stream ids seen driven by a control script
+    // stream ids seen reporting shuffle / repeat
+    this.capable = { shuffle: new Set(), repeat: new Set() };
+    this.artwork = new Artwork({ fetch });
     this.devicesFingerprint = null;
     this.widgetFingerprint = null;
     this.seen = null; // { clients: Map<id, connected>, streams: Map<id, playing> }
@@ -127,10 +149,16 @@ export class Hub {
     this.#teardown();
     this.config = config;
     const saved = (await this.store?.load()) ?? {};
-    for (const id of Array.isArray(saved.controllable) ? saved.controllable : []) {
-      if (typeof id === 'string') {
-        this.controllable.add(id);
+    const remembered = (list, set) => {
+      for (const id of Array.isArray(list) ? list : []) {
+        if (typeof id === 'string') {
+          set.add(id);
+        }
       }
+    };
+    remembered(saved.controllable, this.controllable);
+    for (const key of CAPABILITY_KEYS) {
+      remembered(saved[key], this.capable[key]);
     }
     this.#setup();
   }
@@ -271,7 +299,7 @@ export class Hub {
       return;
     }
     logger.debug(`Notification ${method}`);
-    if (applyNotification(this.model, method, params) === 'reload') {
+    if (applyNotification(this.model, method, params, this.now()) === 'reload') {
       this.#reloadSoon();
       return;
     }
@@ -293,7 +321,10 @@ export class Hub {
         if (client !== this.client) {
           return false;
         }
-        const model = parseServer(result?.server);
+        // A first read (start, new server): the position samples it finds
+        // have no known instant.
+        const previous = this.model.streams.size > 0 ? this.model : null;
+        const model = parseServer(result?.server, previous, this.now());
         client.healthy();
         this.model = model;
         this.online = true;
@@ -380,7 +411,7 @@ export class Hub {
     if (this.stopped) {
       return;
     }
-    this.#rememberControllable();
+    this.#rememberCapabilities();
     this.#fireTriggers();
     const fingerprint = JSON.stringify(this.buildDevices());
     if (fingerprint !== this.devicesFingerprint) {
@@ -395,17 +426,42 @@ export class Hub {
     }
   }
 
-  #rememberControllable() {
+  #rememberCapabilities() {
     let added = false;
-    for (const stream of this.model.streams.values()) {
-      if (stream.canControl && !this.controllable.has(stream.id)) {
-        this.controllable.add(stream.id);
+    const add = (set, id) => {
+      if (!set.has(id)) {
+        set.add(id);
         added = true;
+      }
+    };
+    for (const stream of this.model.streams.values()) {
+      const shown = streamCapabilities(stream);
+      if (stream.canControl) {
+        add(this.controllable, stream.id);
+      }
+      for (const key of CAPABILITY_KEYS) {
+        if (shown[key]) {
+          add(this.capable[key], stream.id);
+        }
       }
     }
     if (added) {
-      this.store?.save({ controllable: [...this.controllable] });
+      const data = { controllable: [...this.controllable] };
+      for (const key of CAPABILITY_KEYS) {
+        data[key] = [...this.capable[key]];
+      }
+      this.store?.save(data);
     }
+  }
+
+  /**
+   * What the streams of the server have ever offered (the ones still there):
+   * the structure of the room devices follows it, not the current stream.
+   */
+  capabilities() {
+    const ids = [...this.model.streams.keys()];
+    const any = (set) => ids.some((id) => set.has(id));
+    return { shuffle: any(this.capable.shuffle), repeat: any(this.capable.repeat) };
   }
 
   /** Scene events: a client (dis)connects, a stream starts or stops. */
@@ -474,9 +530,10 @@ export class Hub {
 
   buildDevices() {
     const { clients, streams } = this.model;
+    const capabilities = this.capabilities();
     return [
       ...[...clients.values()].map((client) =>
-        buildClientDevice(this.gladys, client, this.model, this.language),
+        buildClientDevice(this.gladys, client, this.model, this.language, capabilities),
       ),
       ...[...streams.values()].map((stream) =>
         buildStreamDevice(this.gladys, stream, this.controllable.has(stream.id), this.language),
@@ -500,10 +557,23 @@ export class Hub {
   async publishStates() {
     const created = new Set((this.gladys.devices ?? []).map((device) => device.external_id));
     const states = [];
+    const players = [];
+    const capabilities = this.capabilities();
+    const now = this.now();
     for (const client of this.model.clients.values()) {
-      if (created.has(clientIds(this.gladys, client.id).device)) {
+      const device = clientIds(this.gladys, client.id).device;
+      if (created.has(device)) {
         const offline = this.online ? client : { ...client, connected: false };
         states.push(...buildClientStates(this.gladys, offline, this.model, this.language));
+        const stream = offline.connected ? streamOfClient(this.model, offline) : null;
+        players.push([
+          device,
+          clientNowPlaying(offline, stream, {
+            capabilities,
+            artworkUrl: this.artwork.urlOf(stream),
+            now,
+          }),
+        ]);
       }
     }
     if (this.online) {
@@ -517,6 +587,9 @@ export class Hub {
       return;
     }
     try {
+      for (const [device, nowPlaying] of players) {
+        await this.gladys.publishNowPlaying(device, nowPlaying);
+      }
       await this.gladys.publishChangedStates(states, { heartbeat: HEARTBEAT_MS });
       if (this.publishFailing) {
         this.publishFailing = false;
@@ -526,6 +599,25 @@ export class Hub {
       const log = this.publishFailing ? logger.debug : logger.warn;
       this.publishFailing = true;
       log(`Cannot publish the states: ${err.message}`);
+    }
+  }
+
+  /**
+   * onMusicGetArtwork: the bytes of an artwork whose source publishNowPlaying
+   * recorded (artworkKey), made small enough for the core.
+   * @param {string} key
+   * @returns {Promise<string>} raw base64
+   */
+  async artworkOf(key) {
+    const url = this.gladys.artworkUrls?.get(key);
+    if (url === undefined) {
+      throw new Error(`Unknown artwork ${key}`);
+    }
+    try {
+      return (await this.artwork.read(url)).toString('base64');
+    } catch (err) {
+      logger.debug(`Artwork ${key}: ${err.message}`);
+      throw new Error(`Artwork ${key}: ${err.message}`, { cause: err });
     }
   }
 
@@ -643,7 +735,7 @@ export class Hub {
     }[method];
     if (echo) {
       const [notification, data] = echo();
-      if (applyNotification(this.model, notification, data) === 'reload') {
+      if (applyNotification(this.model, notification, data, this.now()) === 'reload') {
         this.#reloadSoon();
       } else {
         this.#changed();
@@ -721,6 +813,53 @@ export class Hub {
     logger.info(`${stream.name}: ${command}`);
   }
 
+  /** playback_state written: 0 pause, 1 play, 2 stop (3, buffering, is reported only). */
+  async setPlayback(stream, value) {
+    const command = PLAYBACK_COMMANDS[Number(value)];
+    if (!command) {
+      throw new CommandError('bad_command', this.language);
+    }
+    return this.controlStream(stream, command);
+  }
+
+  /** position written: a seek, in seconds from the start of the track. */
+  async seek(stream, value) {
+    const position = Number(value);
+    if (value === null || value === '' || !Number.isFinite(position) || position < 0) {
+      throw new CommandError('bad_command', this.language);
+    }
+    if (!stream.canSeek) {
+      throw new CommandError('not_seekable', this.language);
+    }
+    await this.call('Stream.Control', {
+      id: stream.id,
+      command: 'setPosition',
+      params: { position: Math.round(position) },
+    });
+    logger.info(`${stream.name}: seek to ${Math.round(position)} s`);
+  }
+
+  /** shuffle or repeat written: Stream.SetProperty (shuffle, loopStatus). */
+  async setStreamProperty(stream, key, value) {
+    if (!stream.canControl) {
+      throw new CommandError('not_controllable', this.language);
+    }
+    let property;
+    let wanted;
+    if (key === 'shuffle') {
+      property = 'shuffle';
+      wanted = Number(value) === 1;
+    } else {
+      property = 'loopStatus';
+      wanted = LOOP_FROM_REPEAT[Number(value)];
+      if (!wanted) {
+        throw new CommandError('bad_command', this.language);
+      }
+    }
+    await this.call('Stream.SetProperty', { id: stream.id, property, value: wanted });
+    logger.info(`${stream.name}: ${property} ${wanted}`);
+  }
+
   /** `client` joins the group of `target`. */
   async join(client, target) {
     if (client.id === target.id) {
@@ -758,8 +897,16 @@ export class Hub {
     switch (key) {
       case 'volume':
         return this.setVolume(client, value);
+      // music/mute since 1.1.0, switch/binary before the "Update": 0/1 both.
       case 'mute':
         return this.setMute(client, Number(value) === 1);
+      case 'playback_state':
+        return this.setPlayback(this.streamOf(device.external_id), value);
+      case 'position':
+        return this.seek(this.streamOf(device.external_id), value);
+      case 'shuffle':
+      case 'repeat':
+        return this.setStreamProperty(this.streamOf(device.external_id), key, value);
       case 'stream':
         return this.setStream(client, String(value));
       case 'play':
