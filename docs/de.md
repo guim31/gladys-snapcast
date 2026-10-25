@@ -16,7 +16,7 @@ sind willkommen.
   erreicht.
 - Sein JSON-RPC-Steuerport über TCP, standardmäßig **1705**, aktiviert (das ist er, außer der
   Abschnitt `[tcp]` von `snapserver.conf` sagt `enabled = false`).
-- Gladys 5.1 oder neuer.
+- Gladys 5.3 oder neuer (Musik-Player; Version 1.0 der Integration bleibt für Gladys 5.1 und 5.2).
 
 ## Konfiguration
 
@@ -40,24 +40,27 @@ jede Minute und nach jeder Wiederverbindung neu.
 Jeder snapclient ist ein Gerät, mit dem Namen, den du ihm in Snapweb gegeben hast (sonst dem Namen
 seines Rechners).
 
-| Funktion                         | Was sie tut                                                                        |
-| -------------------------------- | ---------------------------------------------------------------------------------- |
-| Lautstärke                       | 0 bis 100, in beide Richtungen                                                     |
-| Stumm                            | Ein = Ton aus, in beide Richtungen                                                 |
-| Verbunden                        | Ob der snapclient mit dem Server verbunden ist                                     |
-| Stream                           | Der Stream des Raums; ein anderer schaltet **seine ganze Gruppe** um               |
-| Wiedergabestatus                 | Wiedergabe, wenn sein Stream Ton hat                                               |
-| Aktuelle Wiedergabe              | Interpret und Titel, wenn der Stream sie meldet, sonst Name und Status des Streams |
-| Wiedergabe, Pause                | Wirken auf den Stream des Raums, wenn ein Steuerskript ihn steuert (siehe Streams) |
-| Vorheriger Titel, Nächster Titel | Ebenso                                                                             |
+| Funktion                         | Was sie tut                                                                                                             |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Lautstärke                       | 0 bis 100, in beide Richtungen                                                                                          |
+| Stumm                            | Ein = Ton aus, in beide Richtungen (Stummschaltung des Musik-Players)                                                   |
+| Verbunden                        | Ob der snapclient mit dem Server verbunden ist                                                                          |
+| Stream                           | Der Stream des Raums; ein anderer schaltet **seine ganze Gruppe** um                                                    |
+| Wiedergabestatus                 | Wiedergabe (1), Pause (0) oder gestoppt (2), nach dem Stream des Raums; steuerbar, wenn ein Stream ein Steuerskript hat |
+| Aktuelle Wiedergabe              | Interpret und Titel, wenn der Stream sie meldet, sonst Name und Status des Streams                                      |
+| Wiedergabe, Pause                | Wirken auf den Stream des Raums, wenn ein Steuerskript ihn steuert (siehe Streams)                                      |
+| Vorheriger Titel, Nächster Titel | Ebenso                                                                                                                  |
+| Titel, Interpret, Album, Cover   | Was der Stream des Raums spielt (siehe Musik-Player)                                                                    |
+| Dauer, Position                  | Des aktuellen Titels; die Position lässt sich setzen, wenn der Stream springen kann                                     |
+| Zufallswiedergabe, Wiederholen   | Wenn ein Stream des Servers sie meldet; wirken auf den Stream des Raums                                                 |
 
-Ein Client hat Lautstärke, Wiedergabe, Pause und Wiedergabestatus, die die Gladys-Box **Musik**
-erwartet: Füge die Box einem Dashboard hinzu und wähle den Raum.
+Ein Client ist ein Player für die Gladys-Box **Musik**: Füge die Box einem Dashboard hinzu und wähle
+den Raum (siehe Musik-Player von Gladys 5.3).
 
 ### Streams
 
-Jeder Stream des Servers ist auch ein Gerät: sein **Wiedergabestatus** und was er spielt
-(**aktuelle Wiedergabe**). Ein Stream mit Steuerskript (librespot, MPD über `meta_mpd.py`, AirPlay,
+Jeder Stream des Servers ist auch ein Gerät: sein **Wiedergabestatus** (1 Wiedergabe, 0 Pause, 2
+gestoppt) und was er spielt (**aktuelle Wiedergabe**). Ein Stream mit Steuerskript (librespot, MPD über `meta_mpd.py`, AirPlay,
 Plexamp… siehe Snapcast-Dokumentation) hat außerdem die Tasten **Wiedergabe**, **Pause**,
 **Vorheriger Titel** und **Nächster Titel**. Eine einfache Pipe hat keine: Snapcast kann nicht
 pausieren, was es nicht steuert.
@@ -65,6 +68,33 @@ pausieren, was es nicht steuert.
 Es gibt kein Gerät pro Gruppe: Snapcast löscht eine geleerte Gruppe und gibt einer neuen eine neue
 Kennung, was verwaiste Geräte in Gladys hinterlassen würde. Gruppen werden über ihre Clients
 gesteuert (Stream-Wahl, Aktionen unten).
+
+## Musik-Player von Gladys 5.3
+
+Seit Gladys 5.3 ist die Dashboard-Box **Musik** ein echter Player. Wähle einen Raum (einen Client): Die Box
+zeigt, was der Stream seiner Gruppe spielt (Cover, Titel, Interpret, Album, Fortschrittsbalken), mit
+Wiedergabe / Pause, zurück / weiter, Zufallswiedergabe, Wiederholen sowie Lautstärke und
+Stummschaltung des Raums.
+
+- Titel, Interpret, Album, Dauer, Position und Cover kommen vom **Steuerskript** des Streams
+  (librespot, Mopidy über `meta_mopidy.py`, MPD über `meta_mpd.py`, AirPlay…). Eine einfache Pipe
+  meldet nichts davon: Die Box zeigt den Namen des Streams als Titel, live, ohne Fortschrittsbalken.
+- Wiedergabe, Position, Zufallswiedergabe und Wiederholen wirken auf den Stream des Raums, also auf
+  **alle Räume seiner Gruppe**; Lautstärke und Stummschaltung bleiben die des Raums.
+- Was sich steuern lässt, hängt von deinen Streams ab: der Wiedergabestatus, sobald ein Stream des
+  Servers ein Steuerskript hat, die Position, sobald ein Stream springen kann, Zufallswiedergabe und
+  Wiederholen, sobald ein Stream sie meldet. Ein Befehl, den der Stream des Raums nicht ausführen
+  kann, wird mit einer Meldung abgelehnt.
+- Das Cover ist die Adresse aus dem Skript oder das im Stream gesendete Bild (AirPlay). Ein zu großes
+  Bild wird verkleinert; das SVG-Logo von librespot wird nicht angezeigt (Gladys lehnt das Format ab).
+- Keine Bibliothek, keine Suche, keine Warteschlange: Snapcast hat keine. Wähle die Musik in der App
+  deiner Quelle.
+
+**Bereits hinzugefügte Geräte**: Klicke im Tab **Erkennung** der Integration bei jedem Raum auf
+**Aktualisieren**. Er erhält die neuen Funktionen, und seine **Stummschaltung** wird die des
+Musik-Players (gleiche Funktion, Szenen bleiben). Das Angebot kommt wieder, wenn ein Stream später
+steuerbar wird. Der **Wiedergabestatus** ist jetzt **2**, wenn nichts spielt, statt 0: Eine Szene auf
+„Wiedergabestatus = 0“ läuft nur noch bei einer Pause. **Aktuelle Wiedergabe** bleibt erhalten.
 
 ## Dashboard-Widget
 
@@ -131,6 +161,8 @@ Lautstärke, Stummschaltung und Stream eines Raums lassen sich auch mit der Stan
   verlangt (Option neuerer Versionen), wird nicht unterstützt.
 - Kein Gerät pro Gruppe (siehe Streams); die Latenz eines Clients und die Namen stellst du in Snapweb
   ein.
+- Der Aufbau eines Raum-Geräts hängt davon ab, was die Streams des Servers können (siehe
+  Musik-Player): Gladys bietet **Aktualisieren** an, wenn ein Stream steuerbar wird.
 - Der Aufbau eines Stream-Geräts hängt von seinem Steuerskript ab: Wird ein Stream später steuerbar,
   bietet Gladys im Tab Erkennung **Aktualisieren** an.
 - Getestet mit snapserver und snapclient 0.31 in Docker, mit einem Pipe-Stream und einem geskripteten

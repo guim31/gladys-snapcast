@@ -253,7 +253,20 @@ export class FakeSnapserver {
         if (!stream.properties.canControl) {
           return fail(2, 'Stream property canControl is false');
         }
-        const status = { play: 'playing', pause: 'paused', playPause: null }[params.command];
+        if (params.command === 'setPosition') {
+          if (!stream.properties.canSeek) {
+            return fail(-32603, 'Internal error', 'Stream property canSeek is false');
+          }
+          stream.properties.position = params.params.position;
+          answer('ok');
+          return this.notify('Stream.OnProperties', {
+            id: stream.id,
+            properties: stream.properties,
+          });
+        }
+        const status = { play: 'playing', pause: 'paused', stop: 'stopped', playPause: null }[
+          params.command
+        ];
         if (params.command === 'playPause') {
           stream.properties.playbackStatus =
             stream.properties.playbackStatus === 'playing' ? 'paused' : 'playing';
@@ -262,6 +275,18 @@ export class FakeSnapserver {
         }
         answer('ok');
         // The control script reports its new state to everyone, the caller too.
+        return this.notify('Stream.OnProperties', { id: stream.id, properties: stream.properties });
+      }
+      case 'Stream.SetProperty': {
+        const stream = this.stream(params.id);
+        if (!stream) {
+          return fail(-32603, 'Internal error', 'Stream not found');
+        }
+        if (!stream.properties.canControl) {
+          return fail(2, 'Stream property canControl is false');
+        }
+        stream.properties[params.property] = params.value;
+        answer('ok');
         return this.notify('Stream.OnProperties', { id: stream.id, properties: stream.properties });
       }
       default:

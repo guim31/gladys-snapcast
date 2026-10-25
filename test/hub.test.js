@@ -72,7 +72,7 @@ test('states once the devices are added, then only what changes', async (t) => {
   assert.equal(state(gladys, LIVING_ID, 'stream'), RADIO);
   assert.equal(state(gladys, LIVING_ID, 'playback_state'), 1, 'Radio has audio');
   assert.equal(state(gladys, LIVING_ID, 'now_playing'), 'Radio');
-  assert.equal(state(gladys, MUSIC_ID, 'playback_state'), 0, 'Music has no audio');
+  assert.equal(state(gladys, MUSIC_ID, 'playback_state'), 2, 'Music has no audio: idle');
   assert.equal(state(gladys, MUSIC_ID, 'now_playing'), 'Music · Idle');
 
   const before = gladys.fake.states.length;
@@ -310,7 +310,7 @@ test('another server, or none: the rooms of the old one go offline', async (t) =
   t.after(() => world.stop());
   await world.gladys.fake.configUpdated({ ...world.gladys.fake.config, host: '' });
   await until(() => state(world.gladys, LIVING_ID, 'connected') === 0, 2000, 'offline');
-  assert.equal(state(world.gladys, LIVING_ID, 'playback_state'), 0);
+  assert.equal(state(world.gladys, LIVING_ID, 'playback_state'), 2, 'idle');
   await until(() => world.server.sessions.size === 0, 2000, 'the old connection closed');
 });
 

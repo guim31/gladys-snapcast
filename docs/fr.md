@@ -16,7 +16,7 @@ bienvenus.
   réseau local.
 - Son port de contrôle JSON-RPC en TCP, **1705** par défaut, actif (il l'est, sauf si la section
   `[tcp]` de `snapserver.conf` indique `enabled = false`).
-- Gladys 5.1 ou plus récent.
+- Gladys 5.3 ou plus récent (lecteur Musique ; la version 1.0 de l'intégration reste pour Gladys 5.1 et 5.2).
 
 ## Configuration
 
@@ -40,24 +40,27 @@ l'état chaque minute et après chaque reconnexion.
 Chaque snapclient est un appareil, au nom que vous lui avez donné dans Snapweb (ou à défaut au nom
 de sa machine).
 
-| Fonctionnalité     | Ce qu'elle fait                                                                     |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| Volume             | 0 à 100, dans les deux sens                                                         |
-| Sourdine           | Activée = son coupé, dans les deux sens                                             |
-| Connecté           | Le snapclient est-il connecté au serveur                                            |
-| Flux               | Le flux joué dans la pièce ; en choisir un autre bascule **tout son groupe**        |
-| État de lecture    | En lecture quand son flux reçoit du son                                             |
-| En cours           | Artiste et titre quand le flux les donne, sinon le nom et l'état du flux            |
-| Lecture, Pause     | Agissent sur le flux de la pièce, quand un script de contrôle le pilote (voir Flux) |
-| Précédent, Suivant | Idem                                                                                |
+| Fonctionnalité                  | Ce qu'elle fait                                                                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Volume                          | 0 à 100, dans les deux sens                                                                                               |
+| Sourdine                        | Activée = son coupé, dans les deux sens (sourdine du lecteur Musique)                                                     |
+| Connecté                        | Le snapclient est-il connecté au serveur                                                                                  |
+| Flux                            | Le flux joué dans la pièce ; en choisir un autre bascule **tout son groupe**                                              |
+| État de lecture                 | En lecture (1), en pause (0) ou arrêté (2), d'après le flux de la pièce ; pilotable quand un flux a un script de contrôle |
+| En cours                        | Artiste et titre quand le flux les donne, sinon le nom et l'état du flux                                                  |
+| Lecture, Pause                  | Agissent sur le flux de la pièce, quand un script de contrôle le pilote (voir Flux)                                       |
+| Précédent, Suivant              | Idem                                                                                                                      |
+| Titre, Artiste, Album, Pochette | Ce que joue le flux de la pièce (voir Lecteur Musique)                                                                    |
+| Durée, Position                 | Du morceau en cours ; la position se règle quand le flux sait se déplacer dans un morceau                                 |
+| Aléatoire, Répétition           | Quand un flux du serveur les annonce ; agissent sur le flux de la pièce                                                   |
 
-Un client a le volume, la lecture, la pause et l'état de lecture qu'attend la boîte **Musique** de
-Gladys : ajoutez la boîte à un tableau de bord et choisissez la pièce.
+Un client est un lecteur pour la boîte **Musique** de Gladys : ajoutez la boîte à un tableau de bord
+et choisissez la pièce (voir Lecteur Musique de Gladys 5.3).
 
 ### Flux
 
-Chaque flux du serveur est aussi un appareil : son **état de lecture** et ce qu'il joue (**en
-cours**). Un flux piloté par un script de contrôle (librespot, MPD via `meta_mpd.py`, AirPlay,
+Chaque flux du serveur est aussi un appareil : son **état de lecture** (1 en lecture, 0 en pause, 2
+arrêté) et ce qu'il joue (**en cours**). Un flux piloté par un script de contrôle (librespot, MPD via `meta_mpd.py`, AirPlay,
 Plexamp… voir la documentation de Snapcast) a aussi les boutons **Lecture**, **Pause**,
 **Précédent** et **Suivant**. Un simple pipe n'en a pas : Snapcast ne peut pas mettre en pause ce
 qu'il ne pilote pas.
@@ -65,6 +68,35 @@ qu'il ne pilote pas.
 Il n'y a pas d'appareil par groupe : Snapcast supprime un groupe vidé et donne une nouvelle identité
 à un nouveau groupe, ce qui laisserait des appareils orphelins dans Gladys. Les groupes se gèrent par
 leurs clients (choix du flux, actions plus bas).
+
+## Lecteur Musique de Gladys 5.3
+
+Depuis Gladys 5.3, la boîte **Musique** du tableau de bord est un vrai lecteur. Choisissez une pièce
+(un client) : elle montre ce que joue le flux de son groupe (pochette, titre, artiste, album, barre de
+progression), avec lecture / pause, précédent / suivant, aléatoire, répétition, et le volume et la
+sourdine de la pièce.
+
+- Titre, artiste, album, durée, position et pochette viennent du **script de contrôle** du flux
+  (librespot, Mopidy via `meta_mopidy.py`, MPD via `meta_mpd.py`, AirPlay…). Un simple pipe n'en
+  donne pas : la boîte affiche le nom du flux comme titre, en direct, sans barre de progression.
+- Les commandes de lecture, de position, d'aléatoire et de répétition agissent sur le flux joué dans
+  la pièce, donc sur **toutes les pièces de son groupe** ; le volume et la sourdine restent ceux de
+  la pièce.
+- Ce qui se pilote dépend de vos flux : l'état de lecture dès qu'un flux du serveur a un script de
+  contrôle, la position dès qu'un flux sait se déplacer dans un morceau, l'aléatoire et la répétition
+  dès qu'un flux les annonce. Une commande que le flux de la pièce ne sait pas faire est refusée avec
+  un message.
+- La pochette est l'adresse donnée par le script ou l'image envoyée dans le flux (AirPlay). Une
+  image trop lourde est réduite ; le logo SVG que librespot envoie n'est pas affiché (format refusé
+  par Gladys).
+- Pas de bibliothèque, de recherche ni de file d'attente : Snapcast n'en a pas. Choisissez la musique
+  dans l'application de votre source.
+
+**Appareils déjà ajoutés** : dans l'onglet **Découverte** de l'intégration, cliquez sur **Mettre à
+jour** pour chaque pièce. Elle reçoit les nouvelles fonctionnalités, et sa **Sourdine** devient celle
+du lecteur Musique (même fonctionnalité, scènes conservées). La proposition revient si un flux devient
+pilotable plus tard. L'**état de lecture** vaut désormais **2** quand rien ne joue, au lieu de 0 : une
+scène sur « état de lecture = 0 » ne se déclenche plus qu'en pause. **En cours** reste disponible.
 
 ## Widget de tableau de bord
 
@@ -129,6 +161,8 @@ appareil » de Gladys.
 - Pas d'authentification : le port de contrôle de snapserver n'en a pas par défaut. Un serveur qui en
   exige une (option des versions récentes) n'est pas pris en charge.
 - Pas d'appareil par groupe (voir Flux) ; la latence d'un client et les noms se règlent dans Snapweb.
+- La structure d'un appareil pièce dépend de ce que les flux du serveur savent faire (voir Lecteur
+  Musique) : Gladys propose de le **Mettre à jour** quand un flux apprend à se piloter.
 - La structure d'un appareil flux dépend de son script de contrôle : si un flux devient pilotable plus
   tard, Gladys propose de le **Mettre à jour** dans l'onglet Découverte.
 - Testée avec snapserver et snapclient 0.31 en Docker, avec un flux pipe et un lecteur scripté, sans

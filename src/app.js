@@ -69,6 +69,8 @@ export function registerHandlers(gladys, options = {}) {
   gladys.onDeviceCreated(whenReady((device) => hub.onDeviceCreated(device)));
   // "Update" in the Discovery tab: the SDK forgot the states, publish them again.
   gladys.onDeviceUpdated(whenReady((device) => hub.onDeviceCreated(device)));
+  // Gladys 5.3 music box: the artwork of what a room plays (manifest `music`).
+  gladys.onMusicGetArtwork(whenReady((key) => hub.artworkOf(key)));
   gladys.onConfigUpdated(whenReady((config) => hub.reconfigure(normalizeConfig(config))));
 
   for (const [key, handler] of Object.entries(SCENE_ACTIONS)) {

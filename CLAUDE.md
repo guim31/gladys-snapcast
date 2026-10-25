@@ -36,11 +36,13 @@ src/app.js                        registers every SDK handler on the hub (shared
 src/hub.js                        the server, its model, devices, states, scene events, commands
 src/snapcast/client.js            JSON-RPC over TCP (1705): calls, notifications, reconnection
 src/snapcast/model.js             Server.GetStatus -> model, notifications applied to it
-src/devices.js                    client and stream devices, feature couples, states
+src/devices.js                    client and stream devices, feature couples, states, now playing
+src/artwork.js                    artwork of a stream (artUrl or embedded artData) for the Music box
+src/artwork-resize.js             JPEG/PNG made <= 300 KB in plain JS (copied as is from gladys-mopidy)
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
 src/widgets.js                    dashboard widget handlers (manifest `widgets`)
 src/texts.js                      every text of the container, in en/fr/de/es
-src/store.js                      /data/snapcast-state.json (streams seen controllable)
+src/store.js                      /data/snapcast-state.json (streams seen controllable, seekable...)
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
 gladys-assistant-integration.json manifest: name, config_schema, triggers, actions, widget...
 docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys (mandatory)
@@ -257,6 +259,16 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - La boîte **Musique** du cœur liste tout appareil ayant `music/play` et plante sans
   `music/playback_state` ni `music/volume` : les boutons d'un appareil flux (sans volume) sont donc
   des touches `television`.
+- **Lecteur Musique de Gladys 5.3** (1.1.0) : le « now playing » d'une pièce est celui du flux de
+  son groupe (`publishNowPlaying`, clés de fonctionnalités = types). La structure d'une pièce suit ce
+  que les flux du serveur ont **déjà** offert (`canControl`, `canSeek`, `shuffle`, `loopStatus`,
+  retenus dans `/data`), jamais le flux courant : sinon chaque changement de flux ferait proposer
+  « Mettre à jour ». Snapserver garde la `position` telle que le script l'a envoyée et ne l'avance
+  pas : le modèle retient l'instant de l'échantillon (`positionAt`), conservé d'une relecture à
+  l'autre tant que l'échantillon ne change pas. `Stream.OnProperties` ne porte pas le `status` (son
+  qui arrive) : c'est `Stream.OnUpdate`. Un `artData` reçoit de Snapserver un `artUrl`
+  `http://<http.host>:1780/__image_cache?name=<md5>.<ext>` dont l'hôte n'est souvent pas résolu
+  depuis le conteneur : servir les octets embarqués. librespot envoie son logo en SVG : ignoré.
 - Banc de test réel : image Alpine 3.22 + `snapcast-server snapcast-client ffmpeg nodejs`, flux
   `pipe` nourri par `ffmpeg -f lavfi -i sine`, second flux avec `controlscript=` (un script Node
   qui parle `Plugin.Stream.Player.*`, shebang obligatoire), clients `snapclient --hostID client-N
