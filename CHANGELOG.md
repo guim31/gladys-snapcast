@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-25
+
 ### Added
 
 - Gladys 5.3 Music player: each room shows what the stream of its group plays (title, artist,
@@ -54,6 +56,7 @@ the notes of the version's GitHub Release.
   control a stream, group two rooms, ungroup a room.
 - English, French, German and Spanish texts and documentation.
 
-[Unreleased]: https://github.com/guim31/gladys-snapcast/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/guim31/gladys-snapcast/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/guim31/gladys-snapcast/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/guim31/gladys-snapcast/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/guim31/gladys-snapcast/releases/tag/v1.0.0
