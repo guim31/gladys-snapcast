@@ -14,7 +14,9 @@
 // The position a control script reports is a sample: Snapserver keeps it as
 // sent and does not move it while the track plays. The model keeps the
 // instant it was taken (`positionAt`), carried over when a later read gives
-// the same sample, so the extrapolated position never jumps back to it.
+// the same sample, so the extrapolated position never jumps back to it. A
+// sample found by the first read (a start, a new server) may be minutes old:
+// its instant is unknown (null) until the script sends a new one.
 // -----------------------------------------------------------------------------
 
 const str = (value) => (typeof value === 'string' ? value : '');
@@ -89,9 +91,11 @@ function parseProperties(stream, properties, previous, now) {
   const position = finite(props.position);
   stream.position = position !== null && position >= 0 ? position : null;
   const sameSample =
-    previous?.positionAt !== undefined &&
+    previous !== undefined &&
+    previous.positionAt !== undefined &&
     previous.position === stream.position &&
     previous.playbackStatus === stream.playbackStatus &&
+    previous.status === stream.status &&
     previous.title === stream.title;
   stream.positionAt = sameSample ? previous.positionAt : now;
 }
@@ -103,12 +107,15 @@ function parseStream(raw, previous, now) {
     scheme: str(raw?.uri?.scheme),
     status: str(raw?.status) || 'unknown',
   };
-  parseProperties(stream, raw?.properties, previous, now);
+  // parseProperties compares with `previous`, status included.
+  parseProperties(stream, raw?.properties, previous && { ...previous }, now);
   return stream;
 }
 
 /**
  * The `server` object of Server.GetStatus (or of Server.OnUpdate) -> model.
+ * `previous`: the model it replaces; null for a first read, whose position
+ * samples have no known instant (positionAt null).
  * @returns {{ version: string, clients: Map<string, object>, groups: Map<string, object>, streams: Map<string, object> }}
  */
 export function parseServer(server, previous = null, now = Date.now()) {
@@ -139,6 +146,9 @@ export function parseServer(server, previous = null, now = Date.now()) {
   }
   for (const raw of Array.isArray(server?.streams) ? server.streams : []) {
     const stream = parseStream(raw, previous?.streams.get(str(raw?.id)), now);
+    if (previous === null) {
+      stream.positionAt = null;
+    }
     if (stream.id !== '') {
       model.streams.set(stream.id, stream);
     }
@@ -254,10 +264,11 @@ export function streamOfClient(model, client) {
 /**
  * The position of a stream now, in seconds: the reported sample moved on by
  * the time elapsed while it plays, bounded by the duration when known.
- * @returns {number|null} null when the control script reports no position
+ * @returns {number|null} null when the control script reports no position,
+ *   or one whose instant is unknown (found by the first read)
  */
 export function positionNow(stream, now = Date.now()) {
-  if (stream?.position === null || stream?.position === undefined) {
+  if (stream?.position === null || stream?.position === undefined || stream.positionAt === null) {
     return null;
   }
   let position = stream.position;

@@ -83,7 +83,7 @@ const PLAYBACK_COMMANDS = {
 };
 
 // What the streams have shown, remembered by stream id (src/store.js).
-const CAPABILITY_KEYS = { seek: 'seekable', shuffle: 'shuffle', repeat: 'repeat' };
+const CAPABILITY_KEYS = ['shuffle', 'repeat'];
 
 /** An Error carrying a coded, multi-language message. */
 export class CommandError extends Error {
@@ -122,8 +122,8 @@ export class Hub {
     this.serverError = undefined; // undefined: never tried; null: fine; else the reason
     this.lastStatus = null;
     this.controllable = new Set(); // stream ids seen driven by a control script
-    // stream ids seen able to seek, or reporting shuffle / repeat
-    this.capable = { seek: new Set(), shuffle: new Set(), repeat: new Set() };
+    // stream ids seen reporting shuffle / repeat
+    this.capable = { shuffle: new Set(), repeat: new Set() };
     this.artwork = new Artwork({ fetch });
     this.devicesFingerprint = null;
     this.widgetFingerprint = null;
@@ -157,8 +157,8 @@ export class Hub {
       }
     };
     remembered(saved.controllable, this.controllable);
-    for (const [key, name] of Object.entries(CAPABILITY_KEYS)) {
-      remembered(saved[name], this.capable[key]);
+    for (const key of CAPABILITY_KEYS) {
+      remembered(saved[key], this.capable[key]);
     }
     this.#setup();
   }
@@ -321,7 +321,10 @@ export class Hub {
         if (client !== this.client) {
           return false;
         }
-        const model = parseServer(result?.server, this.model, this.now());
+        // A first read (start, new server): the position samples it finds
+        // have no known instant.
+        const previous = this.model.streams.size > 0 ? this.model : null;
+        const model = parseServer(result?.server, previous, this.now());
         client.healthy();
         this.model = model;
         this.online = true;
@@ -433,10 +436,10 @@ export class Hub {
     };
     for (const stream of this.model.streams.values()) {
       const shown = streamCapabilities(stream);
-      if (shown.control) {
+      if (stream.canControl) {
         add(this.controllable, stream.id);
       }
-      for (const key of Object.keys(CAPABILITY_KEYS)) {
+      for (const key of CAPABILITY_KEYS) {
         if (shown[key]) {
           add(this.capable[key], stream.id);
         }
@@ -444,8 +447,8 @@ export class Hub {
     }
     if (added) {
       const data = { controllable: [...this.controllable] };
-      for (const [key, name] of Object.entries(CAPABILITY_KEYS)) {
-        data[name] = [...this.capable[key]];
+      for (const key of CAPABILITY_KEYS) {
+        data[key] = [...this.capable[key]];
       }
       this.store?.save(data);
     }
@@ -458,12 +461,7 @@ export class Hub {
   capabilities() {
     const ids = [...this.model.streams.keys()];
     const any = (set) => ids.some((id) => set.has(id));
-    return {
-      control: any(this.controllable),
-      seek: any(this.capable.seek),
-      shuffle: any(this.capable.shuffle),
-      repeat: any(this.capable.repeat),
-    };
+    return { shuffle: any(this.capable.shuffle), repeat: any(this.capable.repeat) };
   }
 
   /** Scene events: a client (dis)connects, a stream starts or stops. */
@@ -737,7 +735,7 @@ export class Hub {
     }[method];
     if (echo) {
       const [notification, data] = echo();
-      if (applyNotification(this.model, notification, data) === 'reload') {
+      if (applyNotification(this.model, notification, data, this.now()) === 'reload') {
         this.#reloadSoon();
       } else {
         this.#changed();

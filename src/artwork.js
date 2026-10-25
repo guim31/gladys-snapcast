@@ -8,7 +8,7 @@
 //     custom script). Snapserver then adds an `artUrl` of its own HTTP server
 //     (`http://<http.host>:1780/__image_cache?name=<md5>.<ext>`), whose host
 //     name the container may not resolve: the embedded bytes are served
-//     instead, from memory.
+//     instead, from memory, under a key made from their content.
 // librespot sends the Spotify logo as an SVG: the core takes PNG, JPEG or
 // WebP only, so no artwork rather than one the core refuses.
 //
@@ -26,8 +26,9 @@ const ACCEPTED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
 // Embedded images kept in memory: the current ones and a few before.
 const EMBEDDED_KEPT = 8;
 
-// Base64 of the largest image read (4 characters for 3 bytes).
-const MAX_EMBEDDED_LENGTH = Math.ceil(MAX_ARTWORK_DOWNLOAD / 3) * 4;
+// Base64 of the largest embedded image kept (2 MB; a cover sent within a
+// stream is far smaller): at most EMBEDDED_KEPT of them in memory.
+const MAX_EMBEDDED_LENGTH = Math.ceil((2 * 1024 * 1024) / 3) * 4;
 
 const FETCH_TIMEOUT_MS = 10_000;
 
@@ -57,11 +58,9 @@ export class Artwork {
       if (!ACCEPTED_EXTENSIONS.has(art.extension) || data.length > MAX_EMBEDDED_LENGTH) {
         return null;
       }
-      // The URL Snapserver made for it is content-addressed (an md5): it
-      // names the image well. Without one, a hash of the data does.
-      const url =
-        stream.artUrl ||
-        `snapcast-art:${createHash('sha1').update(data).digest('hex').slice(0, 20)}.${art.extension}`;
+      // Named by its content: the core caches an artwork an hour by key, and
+      // a script may send a fixed artUrl along with changing data.
+      const url = `snapcast-art:${createHash('sha1').update(data).digest('hex').slice(0, 20)}.${art.extension}`;
       this.#remember(url, data);
       return url;
     }

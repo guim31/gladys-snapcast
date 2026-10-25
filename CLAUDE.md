@@ -260,15 +260,21 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
   `music/playback_state` ni `music/volume` : les boutons d'un appareil flux (sans volume) sont donc
   des touches `television`.
 - **Lecteur Musique de Gladys 5.3** (1.1.0) : le « now playing » d'une pièce est celui du flux de
-  son groupe (`publishNowPlaying`, clés de fonctionnalités = types). La structure d'une pièce suit ce
-  que les flux du serveur ont **déjà** offert (`canControl`, `canSeek`, `shuffle`, `loopStatus`,
-  retenus dans `/data`), jamais le flux courant : sinon chaque changement de flux ferait proposer
-  « Mettre à jour ». Snapserver garde la `position` telle que le script l'a envoyée et ne l'avance
+  son groupe (`publishNowPlaying`, clés de fonctionnalités = types). **Le cœur ne compare ni
+  `read_only` ni `has_feedback`** pour proposer « Mettre à jour » (signature : id, catégorie, type,
+  unité, min, max, step) : une fonctionnalité publiée en lecture seule le reste pour toujours sur un
+  appareil déjà ajouté. D'où `playback_state` et `position` inscriptibles sur toute pièce, la commande
+  refusée avec un message si le flux ne sait pas (`canControl`, `canSeek`). `shuffle` et `repeat`
+  apparaissent dès qu'un flux du serveur les a annoncés (retenu dans `/data`), jamais selon le flux
+  courant. Snapserver garde la `position` telle que le script l'a envoyée et ne l'avance
   pas : le modèle retient l'instant de l'échantillon (`positionAt`), conservé d'une relecture à
-  l'autre tant que l'échantillon ne change pas. `Stream.OnProperties` ne porte pas le `status` (son
+  l'autre tant que l'échantillon ne change pas ; un échantillon trouvé par la première lecture a un
+  âge inconnu (position laissée telle quelle). librespot donne une durée sans position : « en
+  direct » (durée 0). `Stream.OnProperties` ne porte pas le `status` (son
   qui arrive) : c'est `Stream.OnUpdate`. Un `artData` reçoit de Snapserver un `artUrl`
   `http://<http.host>:1780/__image_cache?name=<md5>.<ext>` dont l'hôte n'est souvent pas résolu
-  depuis le conteneur : servir les octets embarqués. librespot envoie son logo en SVG : ignoré.
+  depuis le conteneur : servir les octets embarqués (clé tirée de leur contenu). librespot envoie son
+  logo en SVG : ignoré.
 - Banc de test réel : image Alpine 3.22 + `snapcast-server snapcast-client ffmpeg nodejs`, flux
   `pipe` nourri par `ffmpeg -f lavfi -i sine`, second flux avec `controlscript=` (un script Node
   qui parle `Plugin.Stream.Player.*`, shebang obligatoire), clients `snapclient --hostID client-N

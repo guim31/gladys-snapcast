@@ -17,15 +17,16 @@ the notes of the version's GitHub Release.
   and the Music box drives it: play, pause and stop, seek, shuffle and repeat go to that stream,
   as far as it allows. A stream without a control script shows its name, live. Artworks sent by
   URL or embedded in the stream (AirPlay) are served, made smaller when above 300 KB. Open the
-  **Discovery** tab and **Update** each room already added.
+  **Discovery** tab and **Update** each room and stream already added.
 
 ### Changed
 
 - Requires Gladys 5.3 or later (1.0.x stays for Gladys 5.1 and 5.2).
 - The playback state of rooms and streams is now 2 (stopped) when nothing plays, instead of 0: a
   scene on "playback state = 0" now only runs on a pause.
-- The mute of a room becomes the mute of the Music player (`music/mute`, same feature, scenes kept)
-  once the room is updated from the Discovery tab.
+- The mute of a room becomes the mute of the Music player (`music/mute`, same feature) once the
+  room is updated from the Discovery tab: scenes that set or watch it keep working, but a scene that
+  toggled it with the "turn on / off a switch" action must be redone with "control a device".
 - The "Now playing" text feature stays, next to the new title and artist.
 
 ## [1.0.1] - 2026-10-22

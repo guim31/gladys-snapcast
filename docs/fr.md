@@ -40,19 +40,19 @@ l'état chaque minute et après chaque reconnexion.
 Chaque snapclient est un appareil, au nom que vous lui avez donné dans Snapweb (ou à défaut au nom
 de sa machine).
 
-| Fonctionnalité                  | Ce qu'elle fait                                                                                                           |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Volume                          | 0 à 100, dans les deux sens                                                                                               |
-| Sourdine                        | Activée = son coupé, dans les deux sens (sourdine du lecteur Musique)                                                     |
-| Connecté                        | Le snapclient est-il connecté au serveur                                                                                  |
-| Flux                            | Le flux joué dans la pièce ; en choisir un autre bascule **tout son groupe**                                              |
-| État de lecture                 | En lecture (1), en pause (0) ou arrêté (2), d'après le flux de la pièce ; pilotable quand un flux a un script de contrôle |
-| En cours                        | Artiste et titre quand le flux les donne, sinon le nom et l'état du flux                                                  |
-| Lecture, Pause                  | Agissent sur le flux de la pièce, quand un script de contrôle le pilote (voir Flux)                                       |
-| Précédent, Suivant              | Idem                                                                                                                      |
-| Titre, Artiste, Album, Pochette | Ce que joue le flux de la pièce (voir Lecteur Musique)                                                                    |
-| Durée, Position                 | Du morceau en cours ; la position se règle quand le flux sait se déplacer dans un morceau                                 |
-| Aléatoire, Répétition           | Quand un flux du serveur les annonce ; agissent sur le flux de la pièce                                                   |
+| Fonctionnalité                  | Ce qu'elle fait                                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Volume                          | 0 à 100, dans les deux sens                                                                                                 |
+| Sourdine                        | Activée = son coupé, dans les deux sens (sourdine du lecteur Musique)                                                       |
+| Connecté                        | Le snapclient est-il connecté au serveur                                                                                    |
+| Flux                            | Le flux joué dans la pièce ; en choisir un autre bascule **tout son groupe**                                                |
+| État de lecture                 | En lecture (1), en pause (0) ou arrêté (2), d'après le flux de la pièce ; se commande quand le flux a un script de contrôle |
+| En cours                        | Artiste et titre quand le flux les donne, sinon le nom et l'état du flux                                                    |
+| Lecture, Pause                  | Agissent sur le flux de la pièce, quand un script de contrôle le pilote (voir Flux)                                         |
+| Précédent, Suivant              | Idem                                                                                                                        |
+| Titre, Artiste, Album, Pochette | Ce que joue le flux de la pièce (voir Lecteur Musique)                                                                      |
+| Durée, Position                 | Du morceau en cours ; la position se règle quand le flux sait se déplacer dans un morceau                                   |
+| Aléatoire, Répétition           | Quand un flux du serveur les annonce ; agissent sur le flux de la pièce                                                     |
 
 Un client est un lecteur pour la boîte **Musique** de Gladys : ajoutez la boîte à un tableau de bord
 et choisissez la pièce (voir Lecteur Musique de Gladys 5.3).
@@ -82,10 +82,10 @@ sourdine de la pièce.
 - Les commandes de lecture, de position, d'aléatoire et de répétition agissent sur le flux joué dans
   la pièce, donc sur **toutes les pièces de son groupe** ; le volume et la sourdine restent ceux de
   la pièce.
-- Ce qui se pilote dépend de vos flux : l'état de lecture dès qu'un flux du serveur a un script de
-  contrôle, la position dès qu'un flux sait se déplacer dans un morceau, l'aléatoire et la répétition
-  dès qu'un flux les annonce. Une commande que le flux de la pièce ne sait pas faire est refusée avec
-  un message.
+- Ce qui se pilote dépend de vos flux : lecture, pause et arrêt quand le flux de la pièce a un script
+  de contrôle, la position quand il sait se déplacer dans un morceau ; l'aléatoire et la répétition
+  apparaissent dès qu'un flux du serveur les annonce. Une commande que le flux de la pièce ne sait pas
+  faire est refusée avec un message.
 - La pochette est l'adresse donnée par le script ou l'image envoyée dans le flux (AirPlay). Une
   image trop lourde est réduite ; le logo SVG que librespot envoie n'est pas affiché (format refusé
   par Gladys).
@@ -93,10 +93,13 @@ sourdine de la pièce.
   dans l'application de votre source.
 
 **Appareils déjà ajoutés** : dans l'onglet **Découverte** de l'intégration, cliquez sur **Mettre à
-jour** pour chaque pièce. Elle reçoit les nouvelles fonctionnalités, et sa **Sourdine** devient celle
-du lecteur Musique (même fonctionnalité, scènes conservées). La proposition revient si un flux devient
-pilotable plus tard. L'**état de lecture** vaut désormais **2** quand rien ne joue, au lieu de 0 : une
-scène sur « état de lecture = 0 » ne se déclenche plus qu'en pause. **En cours** reste disponible.
+jour** pour chaque pièce et chaque flux. La pièce reçoit les nouvelles fonctionnalités, et sa
+**Sourdine** devient celle du lecteur Musique (même fonctionnalité : les scènes qui la commandent ou
+la surveillent continuent de marcher ; une scène qui la basculait par l'action « allumer / éteindre
+un interrupteur » est à refaire avec « contrôler un appareil »). La proposition revient quand un flux
+annonce l'aléatoire ou la répétition. L'**état de lecture** vaut désormais **2** quand rien ne joue,
+au lieu de 0 : une scène sur « état de lecture = 0 » ne se déclenche plus qu'en pause. **En cours**
+reste disponible.
 
 ## Widget de tableau de bord
 
@@ -161,8 +164,8 @@ appareil » de Gladys.
 - Pas d'authentification : le port de contrôle de snapserver n'en a pas par défaut. Un serveur qui en
   exige une (option des versions récentes) n'est pas pris en charge.
 - Pas d'appareil par groupe (voir Flux) ; la latence d'un client et les noms se règlent dans Snapweb.
-- La structure d'un appareil pièce dépend de ce que les flux du serveur savent faire (voir Lecteur
-  Musique) : Gladys propose de le **Mettre à jour** quand un flux apprend à se piloter.
+- La structure d'un appareil pièce gagne l'aléatoire et la répétition quand un flux du serveur les
+  annonce (voir Lecteur Musique) : Gladys propose alors de le **Mettre à jour**.
 - La structure d'un appareil flux dépend de son script de contrôle : si un flux devient pilotable plus
   tard, Gladys propose de le **Mettre à jour** dans l'onglet Découverte.
 - Testée avec snapserver et snapclient 0.31 en Docker, avec un flux pipe et un lecteur scripté, sans

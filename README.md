@@ -43,24 +43,29 @@ one: it shows what the stream of the room's group plays, as reported by the stre
 
 - **Now playing**: title, artist, album, duration and position from the stream properties
   (`Stream.OnProperties`); the position is a sample Snapserver keeps as the script sent it, so the
-  integration remembers when it was taken and extrapolates it while playing. A stream without a
-  control script (a plain pipe) shows its name as the title, live, with no progress bar; a room
-  offline or hearing nothing is cleared (empty texts, playback state 2).
+  integration remembers when it was taken and extrapolates it while playing (a sample found by the
+  first read after a start has no known age: the position is left as Gladys has it until the next
+  one). A source with a duration but no position (Snapserver's librespot stream) is shown live,
+  without a progress bar; a stream without a control script (a plain pipe) shows its name as the
+  title, live; a room offline or hearing nothing is cleared (empty texts, playback state 2).
 - **Commands** go to the stream the room plays (`Stream.Control`: play, pause, stop, setPosition;
   `Stream.SetProperty`: shuffle, loopStatus), confirmed by the script's next notification; volume
-  and mute stay those of the room (`Client.SetVolume`). What is writable follows what the streams of
-  the server have ever offered (`canControl`, `canSeek`, `shuffle`, `loopStatus`, remembered under
-  `/data`), so a room switching streams does not change its device; a command the current stream
-  cannot carry out is refused with a message.
+  and mute stay those of the room (`Client.SetVolume`). `playback_state` and `position` are writable
+  on every room — the core leaves `read_only` out of the structure it compares, so a room added
+  before a stream could be driven would stay read-only — and a command the current stream cannot
+  carry out (`canControl`, `canSeek`) is refused with a message. `shuffle` and `repeat` exist once a
+  stream of the server reported them (remembered under `/data`), not by the current stream, so a
+  room switching streams keeps its structure.
 - **Artwork**: the `artUrl` of the metadata, or the image embedded as `artData` (served from memory:
   the `__image_cache` address Snapserver makes for it names its own host, which the container may
   not resolve). Covers above the 300 KB the core accepts are made a 400 px JPEG in plain JavaScript
   (`src/artwork-resize.js`); librespot's SVG logo is skipped.
 - **No catalog**: Snapcast has no library, search nor queue, so the manifest declares
   `"music": {}` (artwork only).
-- **Upgrading from 1.0**: open the **Discovery** tab and **Update** each room. Its mute feature
-  becomes `music/mute` in place (same external id, scenes kept). The playback state is now 2 (idle)
-  when nothing plays, instead of 0. The "Now playing" text feature stays.
+- **Upgrading from 1.0**: open the **Discovery** tab and **Update** each room and stream. A room's
+  mute becomes `music/mute` in place (same external id: scenes that set or watch it keep working; one
+  using the "turn on / off a switch" action must use "control a device"). The playback state is now 2
+  (idle) when nothing plays, instead of 0. The "Now playing" text feature stays.
 
 ## Requirements
 

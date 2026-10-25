@@ -76,7 +76,7 @@ function noisePng(size) {
   ]);
 }
 
-test('a room is a Gladys 5.3 player: music features, writable as far as the streams allow', async (t) => {
+test('a room is a Gladys 5.3 player: music features, with feedback when writable', async (t) => {
   const world = await createWorld();
   t.after(() => world.stop());
   await until(() => world.gladys.fake.discoveredDevices?.length === 4, 2000, 'devices');
@@ -87,14 +87,15 @@ test('a room is a Gladys 5.3 player: music features, writable as far as the stre
     assert.equal(feature(key).type, key, `${key}: the key is the type (publishNowPlaying ids)`);
   }
   assert.equal(feature('duration').unit, 'seconds');
-  // The Music stream has a control script, reports shuffle and loopStatus,
-  // and cannot seek.
+  // Writable on every room: the core leaves read_only out of the structure
+  // it compares, so it could never become writable later.
   assert.deepEqual(
     [feature('playback_state').read_only, feature('playback_state').max],
     [false, PLAYBACK.IDLE],
   );
   assert.equal(feature('playback_state').has_feedback, true);
-  assert.equal(feature('position').read_only, true, 'no stream can seek');
+  assert.equal(feature('position').read_only, false);
+  // The Music stream has a control script and reports shuffle and loopStatus.
   assert.equal(feature('shuffle').read_only, false);
   assert.equal(feature('repeat').max, REPEAT.ONE);
   for (const f of deviceOf(world.gladys, LIVING_ID).features) {
@@ -111,7 +112,7 @@ test('a room is a Gladys 5.3 player: music features, writable as far as the stre
   assert.equal(featureOf(world.gladys, MUSIC_ID, 'title'), undefined);
 });
 
-test('a server whose streams have no control script: read-only playback, no shuffle nor repeat', async (t) => {
+test('a server whose streams have no control script: no shuffle nor repeat', async (t) => {
   const server = new FakeSnapserver();
   const music = server.stream(MUSIC);
   music.properties = { ...STATUS.server.streams[0].properties };
@@ -123,9 +124,7 @@ test('a server whose streams have no control script: read-only playback, no shuf
     f.external_id.split(':').at(-1),
   );
   assert.ok(!keys.includes('shuffle') && !keys.includes('repeat'), keys.join());
-  const playback = featureOf(world.gladys, LIVING_ID, 'playback_state');
-  assert.deepEqual([playback.read_only, playback.has_feedback], [true, false]);
-  assert.equal(featureOf(world.gladys, LIVING_ID, 'position').read_only, true);
+  assert.ok(keys.includes('playback_state') && keys.includes('position'));
 });
 
 test('now playing: what the stream of the room plays, cleared when nothing is', async (t) => {
@@ -221,7 +220,8 @@ test('the position is a sample: extrapolated while playing, kept across a full r
   const music = status.streams.find((s) => s.id === MUSIC);
   music.status = 'playing';
   Object.assign(music.properties, { position: 10, metadata: { title: 'A', duration: 60 } });
-  const first = parseServer(status, null, 1_000_000);
+  // A sample that arrives while the integration runs (not a first read).
+  const first = parseServer(status, { streams: new Map() }, 1_000_000);
   // A minute later, the server reports the same sample: still 10 s at the
   // first instant, so 70 s now (bounded by the duration: 60).
   const later = parseServer(status, first, 1_030_000);
@@ -237,6 +237,52 @@ test('the position is a sample: extrapolated while playing, kept across a full r
   assert.equal(positionNow(paused.streams.get(MUSIC), 1_090_000), 5);
   // No position reported: unknown, not 0.
   assert.equal(positionNow(paused.streams.get(RADIO)), null);
+  // The audio stops while the script still says playing: a new sample.
+  music.properties.playbackStatus = 'playing';
+  const playing = parseServer(status, paused, 1_060_000);
+  music.status = 'idle';
+  const gap = parseServer(status, playing, 1_070_000);
+  assert.equal(gap.streams.get(MUSIC).positionAt, 1_070_000);
+});
+
+test('a sample found by the first read has no known instant: the position is left unchanged', () => {
+  const status = structuredClone(STATUS.server);
+  const music = status.streams.find((s) => s.id === MUSIC);
+  music.status = 'playing';
+  Object.assign(music.properties, { position: 10, metadata: { title: 'A', duration: 60 } });
+  const first = parseServer(status, null, 1_000_000);
+  assert.equal(first.streams.get(MUSIC).positionAt, null);
+  assert.equal(positionNow(first.streams.get(MUSIC), 1_030_000), null);
+  // Still unknown at the next full read, known once the script sends one.
+  const again = parseServer(status, first, 1_010_000);
+  assert.equal(again.streams.get(MUSIC).positionAt, null);
+  music.properties.position = 12;
+  const fresh = parseServer(status, again, 1_020_000);
+  assert.equal(positionNow(fresh.streams.get(MUSIC), 1_021_000), 13);
+  const client = { connected: true, volume: 50, muted: false };
+  const now = clientNowPlaying(client, again.streams.get(MUSIC), { now: 1_030_000 });
+  assert.equal(now.position, undefined, 'unchanged in Gladys, where it was right');
+  assert.equal(now.duration, 60);
+});
+
+test('a source with a duration but never a position (librespot): live, no progress bar', () => {
+  const stream = {
+    name: 'Spotify',
+    status: 'playing',
+    playbackStatus: null,
+    title: 'Song',
+    artist: 'Band',
+    album: '',
+    duration: 215,
+    position: null,
+    positionAt: 1,
+    shuffle: null,
+    loopStatus: null,
+  };
+  const now = clientNowPlaying({ connected: true, volume: 50, muted: false }, stream);
+  assert.equal(now.playback_state, PLAYBACK.PLAYING);
+  assert.equal(now.duration, 0);
+  assert.equal(now.position, undefined);
 });
 
 test('clientNowPlaying: a stopped stream that still reports a track keeps it, without position', () => {
@@ -309,12 +355,6 @@ test('music box commands go to the stream of the room', async (t) => {
   // Confirmed by the control script (Stream.OnProperties), not assumed.
   await until(() => state(world.gladys, LIVING_ID, 'shuffle') === 1, 2000, 'shuffle confirmed');
   await until(() => state(world.gladys, LIVING_ID, 'mute') === 1, 2000, 'muted');
-  // A stream seen able to seek makes the position writable ("Update").
-  await until(
-    () => featureOf(world.gladys, LIVING_ID, 'position').read_only === false,
-    2000,
-    'seek',
-  );
 });
 
 test('artwork: embedded bytes served from memory, large covers made smaller, SVG skipped', async (t) => {
@@ -331,7 +371,8 @@ test('artwork: embedded bytes served from memory, large covers made smaller, SVG
     server.setStreamProperties(MUSIC, { playbackStatus: 'playing', metadata });
   };
   // Snapserver adds an artUrl on its own HTTP server, whose host name the
-  // container may not resolve: the embedded bytes are served.
+  // container may not resolve: the embedded bytes are served, under a key
+  // made from their content.
   const cacheUrl = 'http://snapserver-host:1780/__image_cache?name=0123abcd.png';
   play({
     title: 'Small',
@@ -340,7 +381,8 @@ test('artwork: embedded bytes served from memory, large covers made smaller, SVG
   });
   await until(() => state(gladys, LIVING_ID, 'title') === 'Small', 2000, 'small');
   const smallKey = state(gladys, LIVING_ID, 'artwork');
-  assert.equal(smallKey, gladys.artworkKey(cacheUrl));
+  assert.notEqual(smallKey, gladys.artworkKey(cacheUrl));
+  assert.match(gladys.artworkUrls.get(smallKey), /^snapcast-art:[0-9a-f]{20}\.png$/);
   world.hub.artwork.fetch = () => {
     throw new Error('no network in the tests');
   };

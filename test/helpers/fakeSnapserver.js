@@ -250,9 +250,7 @@ export class FakeSnapserver {
         if (!stream) {
           return fail(-32603, 'Internal error', 'Stream not found');
         }
-        if (!stream.properties.canControl) {
-          return fail(2, 'Stream property canControl is false');
-        }
+        // Like Snapserver: a seek needs canSeek only, the others canControl.
         if (params.command === 'setPosition') {
           if (!stream.properties.canSeek) {
             return fail(-32603, 'Internal error', 'Stream property canSeek is false');
@@ -263,6 +261,9 @@ export class FakeSnapserver {
             id: stream.id,
             properties: stream.properties,
           });
+        }
+        if (!stream.properties.canControl) {
+          return fail(2, 'Stream property canControl is false');
         }
         const status = { play: 'playing', pause: 'paused', stop: 'stopped', playPause: null }[
           params.command

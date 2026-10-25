@@ -18,13 +18,14 @@
 //   client's group: Snapcast plays a stream per group);
 // - now_playing: text/text, read only ("Artist – Title", kept from 1.0).
 //
-// Which music features a room can write depends on the streams, and a room
-// can switch streams at any time: the structure follows what the server's
-// streams have ever offered (remembered in /data), not the current stream,
-// so it does not change each time a room changes streams. playback_state is
-// writable once a stream was seen driven by a control script, position once
-// one could seek; shuffle and repeat exist once such a stream reported them.
-// A command a stream cannot carry out fails with a clear message.
+// playback_state and position are writable on every room, and a command the
+// stream of the room cannot carry out is refused with a message (like the
+// play/pause buttons of 1.0): the core leaves read_only out of the structure
+// it compares ("Update"), so a room added before a stream could be driven
+// would otherwise stay read-only for good. shuffle and repeat are features
+// of their own: they exist once a stream of the server reported them
+// (remembered in /data, not the current stream, so a room switching streams
+// does not change its structure).
 // Before 1.1.0, mute was switch/binary: same external id, the "Update" of the
 // Discover tab converts it in place (same 0/1 values).
 //
@@ -63,14 +64,13 @@ export const MAX_SECONDS = 86_400;
 const IDLE = MUSIC_PLAYBACK_STATE.IDLE;
 const SECONDS = DEVICE_FEATURE_UNITS.SECONDS;
 
-// key -> [category, type, read_only, min, max, has_feedback, unit]. The
-// entries marked below change with the capabilities (clientFeatureKeys).
+// key -> [category, type, read_only, min, max, has_feedback, unit].
 export const CLIENT_FEATURES = {
   volume: [CAT.MUSIC, TYPE.MUSIC.VOLUME, false, 0, 100, true],
   mute: [CAT.MUSIC, TYPE.MUSIC.MUTE, false, 0, 1, true],
   connected: [CAT.PRESENCE_SENSOR, TYPE.SENSOR.BINARY, true, 0, 1, false],
   stream: [CAT.TEXT, TYPE.TEXT.SELECT, false, 0, 0, true],
-  playback_state: [CAT.MUSIC, TYPE.MUSIC.PLAYBACK_STATE, true, 0, IDLE, false], // control
+  playback_state: [CAT.MUSIC, TYPE.MUSIC.PLAYBACK_STATE, false, 0, IDLE, true],
   play: [CAT.MUSIC, TYPE.MUSIC.PLAY, false, 0, 1, false],
   pause: [CAT.MUSIC, TYPE.MUSIC.PAUSE, false, 0, 1, false],
   previous: [CAT.MUSIC, TYPE.MUSIC.PREVIOUS, false, 0, 1, false],
@@ -81,9 +81,9 @@ export const CLIENT_FEATURES = {
   album: [CAT.MUSIC, TYPE.MUSIC.ALBUM, true, 0, 0, false],
   artwork: [CAT.MUSIC, TYPE.MUSIC.ARTWORK, true, 0, 0, false],
   duration: [CAT.MUSIC, TYPE.MUSIC.DURATION, true, 0, MAX_SECONDS, false, SECONDS],
-  position: [CAT.MUSIC, TYPE.MUSIC.POSITION, true, 0, MAX_SECONDS, false, SECONDS], // seek
-  shuffle: [CAT.MUSIC, TYPE.MUSIC.SHUFFLE, false, 0, 1, true], // shuffle
-  repeat: [CAT.MUSIC, TYPE.MUSIC.REPEAT, false, 0, MUSIC_REPEAT_MODE.ONE, true], // repeat
+  position: [CAT.MUSIC, TYPE.MUSIC.POSITION, false, 0, MAX_SECONDS, true, SECONDS],
+  shuffle: [CAT.MUSIC, TYPE.MUSIC.SHUFFLE, false, 0, 1, true], // see clientFeatureKeys
+  repeat: [CAT.MUSIC, TYPE.MUSIC.REPEAT, false, 0, MUSIC_REPEAT_MODE.ONE, true], // idem
 };
 
 export const STREAM_FEATURES = {
@@ -96,23 +96,17 @@ export const STREAM_FEATURES = {
 };
 
 /**
- * What the streams of the server have ever offered (src/hub.js remembers it):
- * `control` (a control script), `seek`, `shuffle`, `repeat`.
- * @typedef {{ control: boolean, seek: boolean, shuffle: boolean, repeat: boolean }} Capabilities
+ * The optional music features of a room: shuffle and repeat, once a stream
+ * of the server driven by a control script reported them (src/hub.js
+ * remembers it).
+ * @typedef {{ shuffle: boolean, repeat: boolean }} Capabilities
  */
-export const NO_CAPABILITIES = Object.freeze({
-  control: false,
-  seek: false,
-  shuffle: false,
-  repeat: false,
-});
+export const NO_CAPABILITIES = Object.freeze({ shuffle: false, repeat: false });
 
-/** The capabilities a stream shows now. */
+/** What a stream shows now. */
 export function streamCapabilities(stream) {
   const control = stream?.canControl === true;
   return {
-    control,
-    seek: stream?.canSeek === true,
     shuffle: control && stream.shuffle !== null,
     repeat: control && stream.loopStatus !== null,
   };
@@ -194,13 +188,6 @@ export function buildClientDevice(gladys, client, model, language, capabilities 
     clientFeatureKeys(capabilities),
   );
   const byKey = (key) => list.find((feature) => feature.external_id === ids.feature(key));
-  // Writable: the player confirms every change (has_feedback).
-  if (capabilities.control) {
-    Object.assign(byKey('playback_state'), { read_only: false, has_feedback: true });
-  }
-  if (capabilities.seek) {
-    Object.assign(byKey('position'), { read_only: false, has_feedback: true });
-  }
   const options = [...model.streams.values()].map((stream, index) => ({
     value: stream.id,
     label: stream.name.slice(0, 60),
@@ -331,12 +318,16 @@ export function clientNowPlaying(client, stream, options = {}) {
     result.artist = heard.artist;
     result.album = heard.album;
     result.artwork_url = artworkUrl;
-    result.duration = Math.min(MAX_SECONDS, Math.round(heard.duration));
+    // A source that reports a duration but never a position (Snapserver's
+    // librespot stream): no progress bar ("Live") rather than a bar that
+    // runs from an old sample.
+    result.duration =
+      heard.position === null ? 0 : Math.min(MAX_SECONDS, Math.round(heard.duration));
     if (state !== IDLE) {
-      // Unknown (no control script): left unchanged rather than a 0 the SDK
-      // would see drift from its extrapolation and send again at each call.
       const position = positionNow(heard, now);
       if (position === null) {
+        // Unknown, or a sample of unknown age (found by the first read):
+        // left unchanged rather than a value that drifts or jumps back.
         delete result.position;
       } else {
         result.position = position;

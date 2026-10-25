@@ -40,19 +40,19 @@ estado cada minuto y tras cada reconexión.
 Cada snapclient es un dispositivo, con el nombre que usted le dio en Snapweb (o, si no, el nombre de
 su equipo).
 
-| Función                          | Qué hace                                                                                                                                |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Volumen                          | 0 a 100, en ambos sentidos                                                                                                              |
-| Silencio                         | Activado = sonido apagado, en ambos sentidos (silencio del reproductor Música)                                                          |
-| Conectado                        | Si el snapclient está conectado al servidor                                                                                             |
-| Fuente                           | La fuente de la habitación; elegir otra cambia **todo su grupo**                                                                        |
-| Estado de reproducción           | Reproduciendo (1), en pausa (0) o detenido (2), según la fuente de la habitación; controlable cuando una fuente tiene script de control |
-| Reproduciendo                    | Artista y título cuando la fuente los indica, si no el nombre y el estado de la fuente                                                  |
-| Reproducir, Pausa                | Actúan sobre la fuente de la habitación, cuando un script de control la maneja (ver Fuentes)                                            |
-| Anterior, Siguiente              | Igual                                                                                                                                   |
-| Título, Artista, Álbum, Carátula | Lo que suena en la fuente de la habitación (vea Reproductor Música)                                                                     |
-| Duración, Posición               | De la pista actual; la posición se ajusta cuando la fuente puede desplazarse                                                            |
-| Aleatorio, Repetir               | Cuando una fuente del servidor los indica; actúan sobre la fuente de la habitación                                                      |
+| Función                          | Qué hace                                                                                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Volumen                          | 0 a 100, en ambos sentidos                                                                                                                       |
+| Silencio                         | Activado = sonido apagado, en ambos sentidos (silencio del reproductor Música)                                                                   |
+| Conectado                        | Si el snapclient está conectado al servidor                                                                                                      |
+| Fuente                           | La fuente de la habitación; elegir otra cambia **todo su grupo**                                                                                 |
+| Estado de reproducción           | Reproduciendo (1), en pausa (0) o detenido (2), según la fuente de la habitación; las órdenes funcionan cuando la fuente tiene script de control |
+| Reproduciendo                    | Artista y título cuando la fuente los indica, si no el nombre y el estado de la fuente                                                           |
+| Reproducir, Pausa                | Actúan sobre la fuente de la habitación, cuando un script de control la maneja (ver Fuentes)                                                     |
+| Anterior, Siguiente              | Igual                                                                                                                                            |
+| Título, Artista, Álbum, Carátula | Lo que suena en la fuente de la habitación (vea Reproductor Música)                                                                              |
+| Duración, Posición               | De la pista actual; la posición se ajusta cuando la fuente puede desplazarse                                                                     |
+| Aleatorio, Repetir               | Cuando una fuente del servidor los indica; actúan sobre la fuente de la habitación                                                               |
 
 Un cliente es un reproductor para la caja **Música** de Gladys: añada la caja a un panel y elija la
 habitación (vea Reproductor Música de Gladys 5.3).
@@ -82,21 +82,24 @@ silencio de la habitación.
 - Las órdenes de reproducción, posición, aleatorio y repetición actúan sobre la fuente de la
   habitación, es decir sobre **todas las habitaciones de su grupo**; el volumen y el silencio siguen
   siendo los de la habitación.
-- Lo que se controla depende de sus fuentes: el estado de reproducción en cuanto una fuente del
-  servidor tiene script de control, la posición en cuanto una fuente puede desplazarse, aleatorio y
-  repetir en cuanto una fuente los indica. Una orden que la fuente de la habitación no puede cumplir
-  se rechaza con un mensaje.
+- Lo que se controla depende de sus fuentes: reproducir, pausa y detener cuando la fuente de la
+  habitación tiene script de control, la posición cuando puede desplazarse; aleatorio y repetir
+  aparecen en cuanto una fuente del servidor los indica. Una orden que la fuente de la habitación no
+  puede cumplir se rechaza con un mensaje.
 - La carátula es la dirección que da el script o la imagen enviada en la fuente (AirPlay). Una imagen
   demasiado pesada se reduce; el logotipo SVG que envía librespot no se muestra (formato que Gladys
   rechaza).
 - Sin biblioteca, búsqueda ni cola: Snapcast no las tiene. Elija la música en la aplicación de su
   fuente.
 
-**Dispositivos ya añadidos**: en la pestaña **Descubrimiento** de la integración, pulse **Actualizar** en
-cada habitación. Recibe las nuevas funciones, y su **Silencio** pasa a ser el del reproductor Música
-(misma función, escenas conservadas). La propuesta vuelve si una fuente pasa a ser controlable más
-tarde. El **estado de reproducción** vale ahora **2** cuando nada suena, en vez de 0: una escena con
-«estado de reproducción = 0» ya solo se activa en pausa. **Reproduciendo** sigue disponible.
+**Dispositivos ya añadidos**: en la pestaña **Descubrimiento** de la integración, pulse
+**Actualizar** en cada habitación y cada fuente. La habitación recibe las nuevas funciones, y su
+**Silencio** pasa a ser el del reproductor Música (misma función: las escenas que lo ajustan o lo
+vigilan siguen funcionando; una escena que lo alternaba con la acción «encender / apagar un
+interruptor» debe rehacerse con «controlar un dispositivo»). La propuesta vuelve cuando una fuente
+indica aleatorio o repetir. El **estado de reproducción** vale ahora **2** cuando nada suena, en vez
+de 0: una escena con «estado de reproducción = 0» ya solo se activa en pausa. **Reproduciendo** sigue
+disponible.
 
 ## Widget del panel
 
@@ -163,8 +166,8 @@ El volumen, el silencio y la fuente de una habitación también se ajustan con l
   (opción de las versiones recientes) no es compatible.
 - Sin dispositivo por grupo (ver Fuentes); la latencia de un cliente y los nombres se ajustan en
   Snapweb.
-- La estructura de un dispositivo habitación depende de lo que saben hacer las fuentes del servidor
-  (vea Reproductor Música): Gladys propone **Actualizarlo** cuando una fuente pasa a ser controlable.
+- Un dispositivo habitación recibe aleatorio y repetir en cuanto una fuente del servidor los indica
+  (vea Reproductor Música): Gladys propone entonces **Actualizarlo**.
 - La estructura de un dispositivo fuente depende de su script de control: si una fuente pasa a ser
   controlable más tarde, Gladys propone **Actualizarla** en la pestaña Descubrimiento.
 - Probada con snapserver y snapclient 0.31 en Docker, con una fuente pipe y un reproductor simulado,

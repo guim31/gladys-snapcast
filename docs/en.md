@@ -39,19 +39,19 @@ minute and after each reconnection.
 
 Each snapclient is a device, named after the name you gave it in Snapweb (or else its host name).
 
-| Feature                       | What it does                                                                                                         |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Volume                        | 0 to 100, in both directions                                                                                         |
-| Mute                          | On = sound off, in both directions (the mute of the Music player)                                                    |
-| Connected                     | Whether the snapclient is connected to the server                                                                    |
-| Stream                        | The stream the room plays; choosing another one switches **its whole group**                                         |
-| Playback state                | Playing (1), paused (0) or stopped (2), from the stream of the room; controllable when a stream has a control script |
-| Now playing                   | Artist and title when the stream reports them, else the stream name and state                                        |
-| Play, Pause                   | Act on the stream of the room, when a control script drives it (see Streams)                                         |
-| Previous, Next                | Same                                                                                                                 |
-| Title, Artist, Album, Artwork | What the stream of the room plays (see Music player)                                                                 |
-| Duration, Position            | Of the current track; the position can be set when the stream can seek                                               |
-| Shuffle, Repeat               | When a stream of the server reports them; act on the stream of the room                                              |
+| Feature                       | What it does                                                                                                            |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Volume                        | 0 to 100, in both directions                                                                                            |
+| Mute                          | On = sound off, in both directions (the mute of the Music player)                                                       |
+| Connected                     | Whether the snapclient is connected to the server                                                                       |
+| Stream                        | The stream the room plays; choosing another one switches **its whole group**                                            |
+| Playback state                | Playing (1), paused (0) or stopped (2), from the stream of the room; commands work when the stream has a control script |
+| Now playing                   | Artist and title when the stream reports them, else the stream name and state                                           |
+| Play, Pause                   | Act on the stream of the room, when a control script drives it (see Streams)                                            |
+| Previous, Next                | Same                                                                                                                    |
+| Title, Artist, Album, Artwork | What the stream of the room plays (see Music player)                                                                    |
+| Duration, Position            | Of the current track; the position can be set when the stream can seek                                                  |
+| Shuffle, Repeat               | When a stream of the server reports them; act on the stream of the room                                                 |
 
 A client is a player for the Gladys **Music** box: add the box to a dashboard and choose the room
 (see Gladys 5.3 Music player).
@@ -78,19 +78,20 @@ previous / next, shuffle, repeat, and the volume and mute of the room.
   pipe reports none: the box shows the stream name as the title, live, without a progress bar.
 - Playback, position, shuffle and repeat commands act on the stream the room plays, so on **every
   room of its group**; volume and mute stay those of the room.
-- What can be controlled depends on your streams: the playback state as soon as a stream of the
-  server has a control script, the position as soon as a stream can seek, shuffle and repeat as soon
-  as a stream reports them. A command the stream of the room cannot carry out is refused with a
+- What can be controlled depends on your streams: play, pause and stop when the stream of the room
+  has a control script, the position when it can seek; shuffle and repeat appear as soon as a stream
+  of the server reports them. A command the stream of the room cannot carry out is refused with a
   message.
 - The artwork is the address given by the script, or the image sent within the stream (AirPlay). A
   heavy image is made smaller; the SVG logo librespot sends is not shown (a format Gladys refuses).
 - No library, search or queue: Snapcast has none. Pick the music in the app of your source.
 
-**Devices already added**: in the **Discovery** tab of the integration, click **Update** for each room.
-It gets the new features, and its **Mute** becomes the mute of the Music player (same feature, scenes
-kept). The offer comes back if a stream becomes controllable later. The **playback state** is now
-**2** when nothing plays, instead of 0: a scene on "playback state = 0" now only runs on a pause.
-**Now playing** stays available.
+**Devices already added**: in the **Discovery** tab of the integration, click **Update** for each
+room and each stream. The room gets the new features, and its **Mute** becomes the mute of the Music
+player (same feature: scenes that set or watch it keep working; a scene that toggled it with the
+"turn on / off a switch" action must be redone with "control a device"). The offer comes back when a
+stream reports shuffle or repeat. The **playback state** is now **2** when nothing plays, instead of
+0: a scene on "playback state = 0" now only runs on a pause. **Now playing** stays available.
 
 ## Dashboard widget
 
@@ -155,8 +156,8 @@ action of Gladys.
 - No authentication: snapserver's control port has none by default. A server that requires one
   (optional in recent versions) is not supported.
 - No device per group (see Streams); the latency of a client and the names are changed in Snapweb.
-- The structure of a room device depends on what the streams of the server can do (see Music
-  player): Gladys offers to **Update** it when a stream becomes controllable.
+- A room device gains shuffle and repeat when a stream of the server reports them (see Music
+  player): Gladys then offers to **Update** it.
 - The structure of a stream device depends on its control script: if a stream becomes controllable
   later, Gladys offers to **Update** it in the Discovery tab.
 - Tested against snapserver and snapclient 0.31 in Docker, with a pipe stream and a scripted player,
